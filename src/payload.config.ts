@@ -4,7 +4,7 @@ import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { seoPlugin } from '@payloadcms/plugin-seo'
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
 import { redirectsPlugin } from '@payloadcms/plugin-redirects'
-import { searchPlugin } from '@payloadcms/plugin-search'
+// import { searchPlugin } from '@payloadcms/plugin-search'  // disabled V1
 import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
 import path from 'path'
@@ -123,10 +123,7 @@ export default buildConfig({
     redirectsPlugin({
       collections: ['pages'],
     }),
-    searchPlugin({
-      collections: ['pages'],
-      defaultPriorities: { pages: 10 },
-    }),
+    // searchPlugin disabled V1 (incompat multi-tenant)
     nestedDocsPlugin({
       collections: ['pages'],
       generateLabel: (_, doc) => (doc as { title?: string })?.title ?? '',
@@ -140,7 +137,8 @@ export default buildConfig({
         forms: {},
         'form-submissions': {},
         redirects: {},
-        search: {},
+        // search: {},  // disabled V1
+
         header: { isGlobal: true },
         footer: { isGlobal: true },
       },
