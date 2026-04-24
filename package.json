@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "build": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap && cross-env NODE_OPTIONS=--no-deprecation next build",
+    "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
     "devsafe": "rm -rf .next && cross-env NODE_OPTIONS=--no-deprecation next dev",
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
@@ -19,18 +19,25 @@
     "ci": "payload migrate && pnpm build"
   },
   "dependencies": {
+    "@payloadcms/db-postgres": "3.82.1",
+    "@payloadcms/email-nodemailer": "3.82.1",
     "@payloadcms/next": "3.82.1",
+    "@payloadcms/plugin-form-builder": "3.82.1",
+    "@payloadcms/plugin-multi-tenant": "3.82.1",
+    "@payloadcms/plugin-nested-docs": "3.82.1",
+    "@payloadcms/plugin-redirects": "3.82.1",
+    "@payloadcms/plugin-search": "3.82.1",
+    "@payloadcms/plugin-seo": "3.82.1",
     "@payloadcms/richtext-lexical": "3.82.1",
     "@payloadcms/ui": "3.82.1",
     "cross-env": "^7.0.3",
     "graphql": "^16.8.1",
     "next": "16.2.3",
+    "nodemailer": "^8.0.6",
     "payload": "3.82.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "sharp": "0.34.2",
-    "@payloadcms/db-postgres": "3.82.1",
-    "@payloadcms/plugin-multi-tenant": "3.82.1"
+    "sharp": "0.34.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

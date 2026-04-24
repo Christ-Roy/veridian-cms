@@ -84,34 +84,69 @@ async function main() {
     console.log(`✅ Tenant "${tenantSlug}" créé (id=${tenantId})`)
   }
 
-  // 2. Pour chaque src/content/*.ts → upsert page
+  // 2. Pour chaque src/content/*.ts → upsert page (ou globals header/footer)
   const files = fs.readdirSync(contentDir).filter((f) => f.endsWith('.ts'))
   for (const file of files) {
-    const pageSlug = file.replace(/\.ts$/, '')
-    // Import dynamique via tsx runtime — on passe par esbuild
+    const name = file.replace(/\.ts$/, '')
     const mod = await importTs(path.join(contentDir, file))
+
+    // ==== GLOBAL HEADER ====
+    if (name === 'header' && mod.HEADER) {
+      const existing = await api<{ docs: { id: number }[] }>(
+        'GET',
+        `/header?where[tenant][equals]=${tenantId}&limit=1`,
+      )
+      const data = { ...mod.HEADER, tenant: tenantId }
+      if (existing.docs[0]) {
+        await api('PATCH', `/header/${existing.docs[0].id}`, data)
+        console.log(`♻️  Header mis à jour`)
+      } else {
+        await api('POST', '/header', data)
+        console.log(`✅ Header créé`)
+      }
+      continue
+    }
+
+    // ==== GLOBAL FOOTER ====
+    if (name === 'footer' && mod.FOOTER) {
+      const existing = await api<{ docs: { id: number }[] }>(
+        'GET',
+        `/footer?where[tenant][equals]=${tenantId}&limit=1`,
+      )
+      const data = { ...mod.FOOTER, tenant: tenantId }
+      if (existing.docs[0]) {
+        await api('PATCH', `/footer/${existing.docs[0].id}`, data)
+        console.log(`♻️  Footer mis à jour`)
+      } else {
+        await api('POST', '/footer', data)
+        console.log(`✅ Footer créé`)
+      }
+      continue
+    }
+
+    // ==== PAGES (default) ====
     const blocks = mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
     if (!Array.isArray(blocks)) {
-      console.warn(`⚠️  ${file} : pas de export HOME/CONTENT/default array, skip`)
+      console.warn(`⚠️  ${file} : pas de export HOME/CONTENT/HEADER/FOOTER/default reconnu, skip`)
       continue
     }
 
     const existing = await api<{ docs: { id: number }[] }>(
       'GET',
-      `/pages?where[and][0][tenant][equals]=${tenantId}&where[and][1][slug][equals]=${encodeURIComponent(pageSlug)}&limit=1&draft=true`,
+      `/pages?where[and][0][tenant][equals]=${tenantId}&where[and][1][slug][equals]=${encodeURIComponent(name)}&limit=1&draft=true`,
     )
-    const title = (blocks[0] as { title?: string })?.title || pageSlug
+    const title = (blocks[0] as { title?: string })?.title || name
 
     if (existing.docs[0]) {
       await api('PATCH', `/pages/${existing.docs[0].id}?draft=true`, {
-        title, slug: pageSlug, tenant: tenantId, blocks, _status: 'published',
+        title, slug: name, tenant: tenantId, blocks, _status: 'published',
       })
-      console.log(`♻️  Page "${pageSlug}" mise à jour (${blocks.length} blocs)`)
+      console.log(`♻️  Page "${name}" mise à jour (${blocks.length} blocs)`)
     } else {
       await api('POST', '/pages', {
-        title, slug: pageSlug, tenant: tenantId, blocks, _status: 'published',
+        title, slug: name, tenant: tenantId, blocks, _status: 'published',
       })
-      console.log(`✅ Page "${pageSlug}" créée (${blocks.length} blocs)`)
+      console.log(`✅ Page "${name}" créée (${blocks.length} blocs)`)
     }
   }
 
@@ -156,14 +191,24 @@ async function importTs(filePath: string): Promise<Record<string, unknown>> {
     const mod = await import(pathToFileURL(filePath).href)
     return mod
   } catch (err) {
-    // Fallback : parse le fichier à la main pour extraire HOME (simple cas POC)
+    // Fallback : parse le fichier à la main pour extraire HOME, HEADER, FOOTER
     const src = fs.readFileSync(filePath, 'utf8')
-    const match = src.match(/export const HOME\s*:\s*Block\[\]\s*=\s*(\[[\s\S]*\])\s*(\n|$)/m)
-    if (match) {
-      // Dangereux mais bounded : on eval dans un sandbox minimal
-      const fn = new Function(`return ${match[1]}`)
-      return { HOME: fn() }
+    const exports: Record<string, unknown> = {}
+    for (const name of ['HOME', 'HEADER', 'FOOTER', 'CONTENT', 'BLOCKS']) {
+      // Match objets ou arrays en TS, même avec type annotation
+      const re = new RegExp(`export const ${name}[^=]*=\\s*([\\[{][\\s\\S]*?)\\n}\\s*\\n|export const ${name}[^=]*=\\s*(\\[[\\s\\S]*?\\])\\s*\\n`, 'm')
+      const m = src.match(re)
+      if (m) {
+        const body = m[1] ? m[1] + '\n}' : m[2]
+        try {
+          const fn = new Function(`return ${body}`)
+          exports[name] = fn()
+        } catch {
+          // skip
+        }
+      }
     }
+    if (Object.keys(exports).length) return exports
     throw err
   }
 }
