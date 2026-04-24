@@ -1,0 +1,53 @@
+services:
+  cms:
+    image: veridian/cms:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: veridian-cms
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+    depends_on:
+      cms-postgres:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+      - cms-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.veridian-cms.rule=Host(`cms.staging.veridian.site`)"
+      - "traefik.http.routers.veridian-cms.entrypoints=websecure"
+      - "traefik.http.routers.veridian-cms.tls=true"
+      - "traefik.http.routers.veridian-cms.tls.certresolver=letsencrypt"
+      - "traefik.http.services.veridian-cms.loadbalancer.server.port=3000"
+
+  cms-postgres:
+    image: postgres:16-alpine
+    container_name: veridian-cms-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: veridian_cms
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cms-pgdata:/var/lib/postgresql/data
+    networks:
+      - cms-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d veridian_cms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cms-pgdata:
+
+networks:
+  dokploy-network:
+    external: true
+  cms-internal:
