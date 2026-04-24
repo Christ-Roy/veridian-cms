@@ -125,9 +125,12 @@ async function main() {
     }
 
     // ==== PAGES (default) ====
-    const blocks = mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
+    // Cherche un export qui correspond au nom du fichier (ex: services.ts → SERVICES)
+    const nameUpper = name.toUpperCase()
+    const blocks =
+      mod[nameUpper] || mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
     if (!Array.isArray(blocks)) {
-      console.warn(`⚠️  ${file} : pas de export HOME/CONTENT/HEADER/FOOTER/default reconnu, skip`)
+      console.warn(`⚠️  ${file} : pas de export ${nameUpper}/HOME/CONTENT/default reconnu, skip`)
       continue
     }
 
@@ -191,10 +194,13 @@ async function importTs(filePath: string): Promise<Record<string, unknown>> {
     const mod = await import(pathToFileURL(filePath).href)
     return mod
   } catch (err) {
-    // Fallback : parse le fichier à la main pour extraire HOME, HEADER, FOOTER
+    // Fallback : parse le fichier à la main pour extraire les exports nommés
     const src = fs.readFileSync(filePath, 'utf8')
     const exports: Record<string, unknown> = {}
-    for (const name of ['HOME', 'HEADER', 'FOOTER', 'CONTENT', 'BLOCKS']) {
+    // On extrait tous les exports const en MAJUSCULES (SERVICES, CONTACT, HOME, HEADER, FOOTER, ABOUT, etc.)
+    const allNames = Array.from(src.matchAll(/export const ([A-Z_][A-Z0-9_]*)\s*[:=]/g))
+      .map((m) => m[1])
+    for (const name of allNames) {
       // Match objets ou arrays en TS, même avec type annotation
       const re = new RegExp(`export const ${name}[^=]*=\\s*([\\[{][\\s\\S]*?)\\n}\\s*\\n|export const ${name}[^=]*=\\s*(\\[[\\s\\S]*?\\])\\s*\\n`, 'm')
       const m = src.match(re)
