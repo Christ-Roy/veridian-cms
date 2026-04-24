@@ -84,9 +84,67 @@ async function main() {
     console.log(`✅ Tenant "${tenantSlug}" créé (id=${tenantId})`)
   }
 
-  // 2. Pour chaque src/content/*.ts → upsert page (ou globals header/footer)
+  // 2. Pour chaque src/content/*.ts → upsert page, globals, forms
   const files = fs.readdirSync(contentDir).filter((f) => f.endsWith('.ts'))
+
+  // D'abord, on traite forms.ts en premier pour récupérer les IDs (qui seront
+  // référencés par les blocs FormBlock des pages)
+  const formIdBySlug: Record<string, number> = {}
+  const formsFile = files.find((f) => f === 'forms.ts')
+  if (formsFile) {
+    const mod = await importTs(path.join(contentDir, formsFile))
+    const formsList = mod.FORMS as Array<{
+      slug: string
+      title: string
+      fields: Array<Record<string, unknown>>
+      submitButtonLabel?: string
+      confirmationType?: string
+      confirmationMessage?: unknown
+      emails?: Array<Record<string, unknown>>
+    }>
+    if (Array.isArray(formsList)) {
+      for (const f of formsList) {
+        const existing = await api<{ docs: { id: number }[] }>(
+          'GET',
+          `/forms?where[and][0][tenant][equals]=${tenantId}&where[and][1][title][equals]=${encodeURIComponent(f.title)}&limit=1`,
+        )
+        const data = {
+          title: f.title,
+          fields: f.fields,
+          submitButtonLabel: f.submitButtonLabel,
+          confirmationType: f.confirmationType || 'message',
+          confirmationMessage: f.confirmationMessage,
+          emails: f.emails,
+          tenant: tenantId,
+        }
+        if (existing.docs[0]) {
+          await api('PATCH', `/forms/${existing.docs[0].id}`, data)
+          formIdBySlug[f.slug] = existing.docs[0].id
+          console.log(`♻️  Form "${f.slug}" mis à jour (id=${existing.docs[0].id})`)
+        } else {
+          const res = await api<{ doc: { id: number } }>('POST', '/forms', data)
+          formIdBySlug[f.slug] = res.doc.id
+          console.log(`✅ Form "${f.slug}" créé (id=${res.doc.id})`)
+        }
+      }
+    }
+  }
+
+  // Helper : remplace dans un bloc FormBlock le slug (form: "contact") par l'ID numérique
+  const resolveFormRefs = (blocks: unknown): unknown => {
+    if (!Array.isArray(blocks)) return blocks
+    return blocks.map((b) => {
+      const block = b as { blockType?: string; form?: unknown }
+      if (block.blockType === 'formBlock' && typeof block.form === 'string') {
+        const fid = formIdBySlug[block.form]
+        if (fid) return { ...block, form: fid }
+      }
+      return b
+    })
+  }
+
   for (const file of files) {
+    if (file === 'forms.ts') continue // déjà traité
     const name = file.replace(/\.ts$/, '')
     const mod = await importTs(path.join(contentDir, file))
 
@@ -127,12 +185,13 @@ async function main() {
     // ==== PAGES (default) ====
     // Cherche un export qui correspond au nom du fichier (ex: services.ts → SERVICES)
     const nameUpper = name.toUpperCase()
-    const blocks =
+    const rawBlocks =
       mod[nameUpper] || mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
-    if (!Array.isArray(blocks)) {
+    if (!Array.isArray(rawBlocks)) {
       console.warn(`⚠️  ${file} : pas de export ${nameUpper}/HOME/CONTENT/default reconnu, skip`)
       continue
     }
+    const blocks = resolveFormRefs(rawBlocks) as unknown[]
 
     const existing = await api<{ docs: { id: number }[] }>(
       'GET',
@@ -141,12 +200,13 @@ async function main() {
     const title = (blocks[0] as { title?: string })?.title || name
 
     if (existing.docs[0]) {
-      await api('PATCH', `/pages/${existing.docs[0].id}?draft=true`, {
+      // draft=false = écrit directement sur la version published
+      await api('PATCH', `/pages/${existing.docs[0].id}?draft=false`, {
         title, slug: name, tenant: tenantId, blocks, _status: 'published',
       })
       console.log(`♻️  Page "${name}" mise à jour (${blocks.length} blocs)`)
     } else {
-      await api('POST', '/pages', {
+      await api('POST', '/pages?draft=false', {
         title, slug: name, tenant: tenantId, blocks, _status: 'published',
       })
       console.log(`✅ Page "${name}" créée (${blocks.length} blocs)`)

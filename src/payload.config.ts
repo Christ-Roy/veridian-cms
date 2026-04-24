@@ -7,6 +7,8 @@ import { redirectsPlugin } from '@payloadcms/plugin-redirects'
 // import { searchPlugin } from '@payloadcms/plugin-search'  // disabled V1
 import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
 import { nodemailerAdapter } from '@payloadcms/email-nodemailer'
+import { fr } from '@payloadcms/translations/languages/fr'
+import { en } from '@payloadcms/translations/languages/en'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { fileURLToPath } from 'url'
@@ -35,6 +37,21 @@ const SITE_URL_BY_TENANT_ID: Record<number, string> = {
 
 export default buildConfig({
   serverURL: process.env.SERVER_URL || 'https://cms.staging.veridian.site',
+
+  // i18n : français par défaut pour le client, anglais en option pour Robert
+  i18n: {
+    fallbackLanguage: 'fr',
+    supportedLanguages: { fr, en },
+    // Custom translations pour surcharger certains labels Payload
+    translations: {
+      fr: {
+        general: {
+          dashboard: 'Tableau de bord',
+        },
+      },
+    },
+  },
+
   admin: {
     user: Users.slug,
     importMap: { baseDir: path.resolve(dirname) },
@@ -48,7 +65,19 @@ export default buildConfig({
     },
     meta: {
       titleSuffix: ' — Veridian CMS',
-      description: 'Gérez votre site web Veridian',
+      description: 'Espace de gestion Veridian — Modifiez votre site en toute autonomie.',
+      icons: [
+        {
+          type: 'image/svg+xml',
+          rel: 'icon',
+          url: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18" fill="%2316a34a"/><path d="M12 20 L18 26 L28 14" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
+        },
+      ],
+      openGraph: {
+        description: 'Espace de gestion Veridian — Modifiez votre site en toute autonomie.',
+        title: 'Veridian CMS',
+        siteName: 'Veridian CMS',
+      },
     },
     livePreview: {
       url: ({ data }) => {

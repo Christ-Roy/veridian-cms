@@ -2,9 +2,14 @@ import type { CollectionConfig } from 'payload'
 
 export const Media: CollectionConfig = {
   slug: 'media',
+  labels: {
+    singular: 'Média',
+    plural: 'Médias',
+  },
   admin: {
     useAsTitle: 'alt',
-    description: 'Images du site (upload, crop, focal point, formats multiples auto-générés).',
+    description: 'Toutes vos images du site. Téléversez, recadrez, réutilisez.',
+    group: 'Contenu',
   },
   access: {
     read: ({ req }) => Boolean(req.user),
@@ -14,12 +19,16 @@ export const Media: CollectionConfig = {
       name: 'alt',
       type: 'text',
       required: true,
-      admin: { description: "Texte alternatif pour l'accessibilité et le SEO" },
+      label: 'Texte alternatif',
+      admin: {
+        description: "Décrit l'image pour l'accessibilité et le référencement (obligatoire).",
+      },
     },
     {
       name: 'caption',
       type: 'text',
-      admin: { description: "Légende optionnelle affichée sous l'image" },
+      label: 'Légende',
+      admin: { description: "Légende optionnelle affichée sous l'image." },
     },
   ],
   upload: {

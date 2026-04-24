@@ -5,7 +5,15 @@ const isSuperAdmin = (req: { user?: { roles?: string[] | null } | null }) =>
 
 export const Users: CollectionConfig = {
   slug: 'users',
-  admin: { useAsTitle: 'email' },
+  labels: {
+    singular: 'Utilisateur',
+    plural: 'Utilisateurs',
+  },
+  admin: {
+    useAsTitle: 'email',
+    description: 'Utilisateurs du CMS (vous, votre équipe, vos clients).',
+    group: 'Administration',
+  },
   auth: {
     useAPIKey: true,
   },
@@ -27,12 +35,13 @@ export const Users: CollectionConfig = {
     {
       name: 'roles',
       type: 'select',
+      label: 'Rôles',
       hasMany: true,
       defaultValue: ['client'],
       options: [
-        { label: 'Super Admin (Veridian)', value: 'super-admin' },
+        { label: 'Super administrateur (Veridian)', value: 'super-admin' },
         { label: 'Client', value: 'client' },
-        { label: 'Site Reader (API key site vitrine)', value: 'site-reader' },
+        { label: 'Lecteur site (clé API)', value: 'site-reader' },
       ],
       access: {
         update: ({ req }) => isSuperAdmin(req),

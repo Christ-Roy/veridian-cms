@@ -2,13 +2,14 @@ import type { Block } from 'payload'
 
 export const RichTextBlock: Block = {
   slug: 'richtext',
-  labels: { singular: 'Bloc de texte', plural: 'Blocs de texte' },
+  labels: { singular: 'Texte riche', plural: 'Textes riches' },
   fields: [
-    { name: 'title', type: 'text' },
-    { name: 'body', type: 'richText', required: true },
+    { name: 'title', type: 'text', label: 'Titre' },
+    { name: 'body', type: 'richText', required: true, label: 'Contenu' },
     {
       name: 'alignment',
       type: 'select',
+      label: 'Alignement',
       defaultValue: 'left',
       options: [
         { label: 'Gauche', value: 'left' },
