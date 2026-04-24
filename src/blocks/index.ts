@@ -1,0 +1,6 @@
+export { HeroBlock } from './Hero'
+export { ServicesBlock } from './Services'
+export { GalleryBlock } from './Gallery'
+export { TestimonialsBlock } from './Testimonials'
+export { RichTextBlock } from './RichText'
+export { CTABlock } from './CTA'

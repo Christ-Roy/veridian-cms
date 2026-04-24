@@ -69,7 +69,10 @@ export interface Config {
   collections: {
     users: User;
     media: Media;
+    tenants: Tenant;
+    pages: Page;
     'payload-kv': PayloadKv;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
@@ -78,7 +81,10 @@ export interface Config {
   collectionsSelect: {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    tenants: TenantsSelect<false> | TenantsSelect<true>;
+    pages: PagesSelect<false> | PagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -95,7 +101,13 @@ export interface Config {
   };
   user: User;
   jobs: {
-    tasks: unknown;
+    tasks: {
+      schedulePublish: TaskSchedulePublish;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -123,8 +135,18 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
+  roles?: ('super-admin' | 'client' | 'site-reader')[] | null;
+  tenants?:
+    | {
+        tenant: number | Tenant;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -143,12 +165,42 @@ export interface User {
   collection: 'users';
 }
 /**
+ * Un tenant = un client Veridian (Morel, Tramtech, etc.)
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants".
+ */
+export interface Tenant {
+  id: number;
+  name: string;
+  /**
+   * Identifiant URL ex: morel-volailles
+   */
+  slug: string;
+  /**
+   * Slug du projet Cloudflare Pages pour rebuild auto
+   */
+  cfPagesProject?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Images du site (upload, crop, focal point, formats multiples auto-générés).
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
   id: number;
+  tenant?: (number | null) | Tenant;
+  /**
+   * Texte alternatif pour l'accessibilité et le SEO
+   */
   alt: string;
+  /**
+   * Légende optionnelle affichée sous l'image
+   */
+  caption?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -160,6 +212,172 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
+  sizes?: {
+    thumbnail?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    card?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+    hero?: {
+      url?: string | null;
+      width?: number | null;
+      height?: number | null;
+      mimeType?: string | null;
+      filesize?: number | null;
+      filename?: string | null;
+    };
+  };
+}
+/**
+ * Pages du site — composez avec des blocs modulaires.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  /**
+   * Identifiant URL de la page (ex: home, services, contact)
+   */
+  slug: string;
+  /**
+   * Assemblez votre page avec des blocs modulaires.
+   */
+  blocks?:
+    | (
+        | {
+            /**
+             * Petit texte au-dessus du titre (ex: "Artisan certifié RGE")
+             */
+            eyebrow?: string | null;
+            title: string;
+            subtitle?: string | null;
+            image?: (number | null) | Media;
+            ctas?:
+              | {
+                  label: string;
+                  url: string;
+                  variant?: ('primary' | 'secondary') | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'hero';
+          }
+        | {
+            title?: string | null;
+            subtitle?: string | null;
+            items?:
+              | {
+                  icon?: ('check' | 'hammer' | 'home' | 'wrench' | 'star' | 'shield' | 'leaf' | 'clock') | null;
+                  title: string;
+                  description?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'services';
+          }
+        | {
+            title?: string | null;
+            subtitle?: string | null;
+            images?:
+              | {
+                  image: number | Media;
+                  caption?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'gallery';
+          }
+        | {
+            title?: string | null;
+            items?:
+              | {
+                  quote: string;
+                  author: string;
+                  /**
+                   * Ex: 'Cliente particulière, Lyon 2ᵉ'
+                   */
+                  role?: string | null;
+                  avatar?: (number | null) | Media;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'testimonials';
+          }
+        | {
+            title?: string | null;
+            body: {
+              root: {
+                type: string;
+                children: {
+                  type: any;
+                  version: number;
+                  [k: string]: unknown;
+                }[];
+                direction: ('ltr' | 'rtl') | null;
+                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                indent: number;
+                version: number;
+              };
+              [k: string]: unknown;
+            };
+            alignment?: ('left' | 'center') | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'richtext';
+          }
+        | {
+            title: string;
+            description?: string | null;
+            ctaLabel: string;
+            ctaUrl: string;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'cta';
+          }
+      )[]
+    | null;
+  /**
+   * Optimisation pour les moteurs de recherche
+   */
+  seo?: {
+    /**
+     * Titre affiché dans Google (≤ 60 car.)
+     */
+    metaTitle?: string | null;
+    /**
+     * Description Google (≤ 160 car.)
+     */
+    metaDescription?: string | null;
+    /**
+     * Image de partage réseaux sociaux (1200×630)
+     */
+    ogImage?: (number | null) | Media;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -180,6 +398,98 @@ export interface PayloadKv {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'schedulePublish';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'schedulePublish') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
@@ -192,6 +502,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'tenants';
+        value: number | Tenant;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -240,8 +558,18 @@ export interface PayloadMigration {
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
+  roles?: T;
+  tenants?:
+    | T
+    | {
+        tenant?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;
@@ -262,7 +590,9 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  tenant?: T;
   alt?: T;
+  caption?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -274,6 +604,158 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+  sizes?:
+    | T
+    | {
+        thumbnail?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        card?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+        hero?:
+          | T
+          | {
+              url?: T;
+              width?: T;
+              height?: T;
+              mimeType?: T;
+              filesize?: T;
+              filename?: T;
+            };
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants_select".
+ */
+export interface TenantsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  cfPagesProject?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  slug?: T;
+  blocks?:
+    | T
+    | {
+        hero?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              image?: T;
+              ctas?:
+                | T
+                | {
+                    label?: T;
+                    url?: T;
+                    variant?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        services?:
+          | T
+          | {
+              title?: T;
+              subtitle?: T;
+              items?:
+                | T
+                | {
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        gallery?:
+          | T
+          | {
+              title?: T;
+              subtitle?: T;
+              images?:
+                | T
+                | {
+                    image?: T;
+                    caption?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        testimonials?:
+          | T
+          | {
+              title?: T;
+              items?:
+                | T
+                | {
+                    quote?: T;
+                    author?: T;
+                    role?: T;
+                    avatar?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        richtext?:
+          | T
+          | {
+              title?: T;
+              body?: T;
+              alignment?: T;
+              id?: T;
+              blockName?: T;
+            };
+        cta?:
+          | T
+          | {
+              title?: T;
+              description?: T;
+              ctaLabel?: T;
+              ctaUrl?: T;
+              id?: T;
+              blockName?: T;
+            };
+      };
+  seo?:
+    | T
+    | {
+        metaTitle?: T;
+        metaDescription?: T;
+        ogImage?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -282,6 +764,37 @@ export interface MediaSelect<T extends boolean = true> {
 export interface PayloadKvSelect<T extends boolean = true> {
   key?: T;
   data?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -324,6 +837,23 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSchedulePublish".
+ */
+export interface TaskSchedulePublish {
+  input: {
+    type?: ('publish' | 'unpublish') | null;
+    locale?: string | null;
+    doc?: {
+      relationTo: 'pages';
+      value: number | Page;
+    } | null;
+    global?: string | null;
+    user?: (number | null) | User;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
