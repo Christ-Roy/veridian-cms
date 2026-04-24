@@ -54,6 +54,7 @@ export default buildConfig({
 
   admin: {
     user: Users.slug,
+    theme: 'light', // force light mode (défaut = 'all' qui suit l'OS)
     importMap: { baseDir: path.resolve(dirname) },
     components: {
       graphics: {
