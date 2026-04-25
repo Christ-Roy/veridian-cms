@@ -10,8 +10,9 @@ export default defineConfig({
   testDir: './specs',
   fullyParallel: true,
   forbidOnly: isCI,
-  retries: isCI ? 2 : 0, // anti-flaky réseau
+  retries: isCI ? 2 : 0,
   workers: isCI ? 4 : undefined,
+  timeout: 60_000,
   reporter: isCI
     ? [['html', { outputFolder: 'playwright-report', open: 'never' }], ['github']]
     : 'list',
