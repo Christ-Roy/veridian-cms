@@ -28,16 +28,24 @@ test('create page via API → edit in admin → save → verify via API', async 
 
   const updatedTitle = `E2E updated ${Date.now()}`
   await page.locator('input#field-title').fill(updatedTitle)
+  await page.locator('input#field-title').blur()
 
+  const saveResponse = page.waitForResponse(
+    (r) => r.url().includes(`/api/pages/${pageId}`) && r.request().method() === 'PATCH' && r.ok(),
+    { timeout: 15_000 },
+  )
   await page.locator('button#action-save').click()
+  await saveResponse
 
-  await expect(page.locator('.toast-title, [class*="toast"][class*="title"]').first()).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.toast-title, [class*="toast"][class*="title"]').first()).toBeVisible({ timeout: 10_000 })
 
-  const r = await fetch(`${baseURL}/api/pages/${pageId}`, {
-    headers: { Authorization: `users API-Key ${adminKey}` },
-  })
-  expect(r.ok).toBe(true)
-  const json = await r.json()
-  expect(json.title).toBe(updatedTitle)
-  expect(json.tenant?.id ?? json.tenant).toBe(tenant.id)
+  await expect(async () => {
+    const r = await fetch(`${baseURL}/api/pages/${pageId}`, {
+      headers: { Authorization: `users API-Key ${adminKey}` },
+    })
+    expect(r.ok).toBe(true)
+    const json = await r.json()
+    expect(json.title).toBe(updatedTitle)
+    expect(json.tenant?.id ?? json.tenant).toBe(tenant.id)
+  }).toPass({ timeout: 10_000, intervals: [500, 1000, 2000] })
 })
