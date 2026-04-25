@@ -71,6 +71,11 @@ export interface Config {
     media: Media;
     tenants: Tenant;
     pages: Page;
+    header: Header;
+    footer: Footer;
+    forms: Form;
+    'form-submissions': FormSubmission;
+    redirects: Redirect;
     'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -83,6 +88,11 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    header: HeaderSelect<false> | HeaderSelect<true>;
+    footer: FooterSelect<false> | FooterSelect<true>;
+    forms: FormsSelect<false> | FormsSelect<true>;
+    'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
+    redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -130,6 +140,8 @@ export interface UserAuthOperations {
   };
 }
 /**
+ * Utilisateurs du CMS (vous, votre équipe, vos clients).
+ *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
@@ -165,7 +177,7 @@ export interface User {
   collection: 'users';
 }
 /**
- * Un tenant = un client Veridian (Morel, Tramtech, etc.)
+ * Un client Veridian (ex : Morel Volailles, Dupont BTP...). Chaque client a son propre espace isolé.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "tenants".
@@ -174,18 +186,22 @@ export interface Tenant {
   id: number;
   name: string;
   /**
-   * Identifiant URL ex: morel-volailles
+   * Ex : morel-volailles, dupont-btp
    */
   slug: string;
   /**
-   * Slug du projet Cloudflare Pages pour rebuild auto
+   * Slug du projet CF Pages associé (pour le rebuild auto)
    */
   cfPagesProject?: string | null;
+  /**
+   * URL appelée pour rebuild le site quand une page est publiée
+   */
+  cfDeployHook?: string | null;
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Images du site (upload, crop, focal point, formats multiples auto-générés).
+ * Toutes vos images du site. Téléversez, recadrez, réutilisez.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
@@ -194,11 +210,11 @@ export interface Media {
   id: number;
   tenant?: (number | null) | Tenant;
   /**
-   * Texte alternatif pour l'accessibilité et le SEO
+   * Décrit l'image pour l'accessibilité et le référencement (obligatoire).
    */
   alt: string;
   /**
-   * Légende optionnelle affichée sous l'image
+   * Légende optionnelle affichée sous l'image.
    */
   caption?: string | null;
   updatedAt: string;
@@ -240,7 +256,7 @@ export interface Media {
   };
 }
 /**
- * Pages du site — composez avec des blocs modulaires.
+ * Les pages de votre site — composez-les avec des blocs modulaires.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "pages".
@@ -250,17 +266,17 @@ export interface Page {
   tenant?: (number | null) | Tenant;
   title: string;
   /**
-   * Identifiant URL de la page (ex: home, services, contact)
+   * Ex : home (page d'accueil), services, contact, a-propos
    */
   slug: string;
   /**
-   * Assemblez votre page avec des blocs modulaires.
+   * Composez votre page avec des blocs modulaires (Hero, Services, Galerie, Témoignages, Texte riche, Appel à l'action).
    */
   blocks?:
     | (
         | {
             /**
-             * Petit texte au-dessus du titre (ex: "Artisan certifié RGE")
+             * Petit texte au-dessus du titre (ex : "Artisan certifié RGE").
              */
             eyebrow?: string | null;
             title: string;
@@ -314,7 +330,7 @@ export interface Page {
                   quote: string;
                   author: string;
                   /**
-                   * Ex: 'Cliente particulière, Lyon 2ᵉ'
+                   * Ex : 'Cliente particulière, Lyon 2ᵉ'
                    */
                   role?: string | null;
                   avatar?: (number | null) | Media;
@@ -356,28 +372,338 @@ export interface Page {
             blockName?: string | null;
             blockType: 'cta';
           }
+        | {
+            title?: string | null;
+            subtitle?: string | null;
+            /**
+             * Sélectionnez un formulaire que vous avez créé dans Formulaires. Si aucun n'apparaît, créez-en un d'abord.
+             */
+            form: number | Form;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'formBlock';
+          }
       )[]
     | null;
-  /**
-   * Optimisation pour les moteurs de recherche
-   */
-  seo?: {
+  meta?: {
+    title?: string | null;
+    description?: string | null;
     /**
-     * Titre affiché dans Google (≤ 60 car.)
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
-    metaTitle?: string | null;
-    /**
-     * Description Google (≤ 160 car.)
-     */
-    metaDescription?: string | null;
-    /**
-     * Image de partage réseaux sociaux (1200×630)
-     */
-    ogImage?: (number | null) | Media;
+    image?: (number | null) | Media;
   };
+  parent?: (number | null) | Page;
+  breadcrumbs?:
+    | {
+        doc?: (number | null) | Page;
+        url?: string | null;
+        label?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * Formulaires éditables par le client (contact, devis...).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "forms".
+ */
+export interface Form {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  title: string;
+  fields?:
+    | (
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            required?: boolean | null;
+            defaultValue?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'checkbox';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'country';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'email';
+          }
+        | {
+            message?: {
+              root: {
+                type: string;
+                children: {
+                  type: any;
+                  version: number;
+                  [k: string]: unknown;
+                }[];
+                direction: ('ltr' | 'rtl') | null;
+                format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+                indent: number;
+                version: number;
+              };
+              [k: string]: unknown;
+            } | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'message';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            defaultValue?: number | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'number';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            defaultValue?: string | null;
+            placeholder?: string | null;
+            options?:
+              | {
+                  label: string;
+                  value: string;
+                  id?: string | null;
+                }[]
+              | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'select';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'state';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            defaultValue?: string | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'text';
+          }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            defaultValue?: string | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'textarea';
+          }
+      )[]
+    | null;
+  submitButtonLabel?: string | null;
+  /**
+   * Choose whether to display an on-page message or redirect to a different page after they submit the form.
+   */
+  confirmationType?: ('message' | 'redirect') | null;
+  confirmationMessage?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  redirect?: {
+    url: string;
+  };
+  /**
+   * Send custom emails when the form submits. Use comma separated lists to send the same email to multiple recipients. To reference a value from this form, wrap that field's name with double curly brackets, i.e. {{firstName}}. You can use a wildcard {{*}} to output all data and {{*:table}} to format it as an HTML table in the email.
+   */
+  emails?:
+    | {
+        emailTo?: string | null;
+        cc?: string | null;
+        bcc?: string | null;
+        replyTo?: string | null;
+        emailFrom?: string | null;
+        subject: string;
+        /**
+         * Enter the message that should be sent in this email.
+         */
+        message?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Barre de navigation en haut du site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header".
+ */
+export interface Header {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  logo?: (number | null) | Media;
+  /**
+   * Nom affiché à côté du logo (si pas d'image).
+   */
+  logoText?: string | null;
+  /**
+   * Liens de navigation (max 6).
+   */
+  nav?:
+    | {
+        label: string;
+        /**
+         * Ex : /services, /contact
+         */
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Optionnel. Ex : "Devis gratuit", "Réserver".
+   */
+  cta?: {
+    label?: string | null;
+    url?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Pied de page — infos entreprise, contact, réseaux sociaux.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer".
+ */
+export interface Footer {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  company?: {
+    name?: string | null;
+    /**
+     * Phrase courte sous le nom.
+     */
+    tagline?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+  };
+  hours?:
+    | {
+        /**
+         * Ex : Lun–Ven
+         */
+        day: string;
+        /**
+         * Ex : 8h–18h
+         */
+        time: string;
+        id?: string | null;
+      }[]
+    | null;
+  social?: {
+    facebook?: string | null;
+    instagram?: string | null;
+    linkedin?: string | null;
+    /**
+     * URL de votre fiche Google Business.
+     */
+    google?: string | null;
+  };
+  legal?: {
+    siret?: string | null;
+    mentionsUrl?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions".
+ */
+export interface FormSubmission {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  form: number | Form;
+  submissionData?:
+    | {
+        field: string;
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "redirects".
+ */
+export interface Redirect {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  from: string;
+  to?: {
+    type?: ('reference' | 'custom') | null;
+    reference?: {
+      relationTo: 'pages';
+      value: number | Page;
+    } | null;
+    url?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -510,6 +836,26 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'header';
+        value: number | Header;
+      } | null)
+    | ({
+        relationTo: 'footer';
+        value: number | Footer;
+      } | null)
+    | ({
+        relationTo: 'forms';
+        value: number | Form;
+      } | null)
+    | ({
+        relationTo: 'form-submissions';
+        value: number | FormSubmission;
+      } | null)
+    | ({
+        relationTo: 'redirects';
+        value: number | Redirect;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -647,6 +993,7 @@ export interface TenantsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
   cfPagesProject?: T;
+  cfDeployHook?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -745,17 +1092,266 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        formBlock?:
+          | T
+          | {
+              title?: T;
+              subtitle?: T;
+              form?: T;
+              id?: T;
+              blockName?: T;
+            };
       };
-  seo?:
+  meta?:
     | T
     | {
-        metaTitle?: T;
-        metaDescription?: T;
-        ogImage?: T;
+        title?: T;
+        description?: T;
+        image?: T;
+      };
+  parent?: T;
+  breadcrumbs?:
+    | T
+    | {
+        doc?: T;
+        url?: T;
+        label?: T;
+        id?: T;
       };
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header_select".
+ */
+export interface HeaderSelect<T extends boolean = true> {
+  tenant?: T;
+  logo?: T;
+  logoText?: T;
+  nav?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  cta?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer_select".
+ */
+export interface FooterSelect<T extends boolean = true> {
+  tenant?: T;
+  company?:
+    | T
+    | {
+        name?: T;
+        tagline?: T;
+        phone?: T;
+        email?: T;
+        address?: T;
+      };
+  hours?:
+    | T
+    | {
+        day?: T;
+        time?: T;
+        id?: T;
+      };
+  social?:
+    | T
+    | {
+        facebook?: T;
+        instagram?: T;
+        linkedin?: T;
+        google?: T;
+      };
+  legal?:
+    | T
+    | {
+        siret?: T;
+        mentionsUrl?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "forms_select".
+ */
+export interface FormsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  fields?:
+    | T
+    | {
+        checkbox?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              required?: T;
+              defaultValue?: T;
+              id?: T;
+              blockName?: T;
+            };
+        country?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        email?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        message?:
+          | T
+          | {
+              message?: T;
+              id?: T;
+              blockName?: T;
+            };
+        number?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              defaultValue?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        select?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              defaultValue?: T;
+              placeholder?: T;
+              options?:
+                | T
+                | {
+                    label?: T;
+                    value?: T;
+                    id?: T;
+                  };
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        state?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        text?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              defaultValue?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        textarea?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              defaultValue?: T;
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+      };
+  submitButtonLabel?: T;
+  confirmationType?: T;
+  confirmationMessage?: T;
+  redirect?:
+    | T
+    | {
+        url?: T;
+      };
+  emails?:
+    | T
+    | {
+        emailTo?: T;
+        cc?: T;
+        bcc?: T;
+        replyTo?: T;
+        emailFrom?: T;
+        subject?: T;
+        message?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions_select".
+ */
+export interface FormSubmissionsSelect<T extends boolean = true> {
+  tenant?: T;
+  form?: T;
+  submissionData?:
+    | T
+    | {
+        field?: T;
+        value?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "redirects_select".
+ */
+export interface RedirectsSelect<T extends boolean = true> {
+  tenant?: T;
+  from?: T;
+  to?:
+    | T
+    | {
+        type?: T;
+        reference?: T;
+        url?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
