@@ -26,8 +26,8 @@ export default defineConfig({
     headless: false,
     viewport: { width: 1440, height: 900 },
     // Timeouts généreux car on passe par internet + CMS peut lag
-    actionTimeout: 10_000,
-    navigationTimeout: 30_000,
+    actionTimeout: 30_000,
+    navigationTimeout: 45_000,
   },
   expect: {
     timeout: 10_000,

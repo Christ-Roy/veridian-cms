@@ -15,7 +15,7 @@ function authHeaders() {
 }
 
 async function ctx() {
-  return request.newContext({ baseURL: CMS_URL, extraHTTPHeaders: authHeaders() })
+  return request.newContext({ baseURL: CMS_URL, extraHTTPHeaders: authHeaders(), timeout: 60_000 })
 }
 
 export async function createTenant(slug: string, name: string): Promise<Tenant> {
@@ -58,6 +58,7 @@ export async function findPagesByTenant(apiKey: string, tenantId: number): Promi
       'Content-Type': 'application/json',
       Authorization: `users API-Key ${apiKey}`,
     },
+    timeout: 60_000,
   })
   const r = await api.get(`/api/pages?where[tenant][equals]=${tenantId}`)
   if (!r.ok()) return []
