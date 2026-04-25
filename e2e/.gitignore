@@ -1,0 +1,5 @@
+node_modules
+.e2e-state.json
+test-results
+playwright-report
+inspect-*.mjs

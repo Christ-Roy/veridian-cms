@@ -1,34 +1,41 @@
-/**
- * Test 1 — Login admin. Référence pour tous les autres specs.
- *
- * Patterns obligatoires :
- *  - pas de waitForTimeout
- *  - data-testids sur éléments critiques
- *  - screenshots seulement on failure (config playwright)
- *  - fixtures idempotentes (tenant e2e-<uuid>)
- */
 import { test, expect } from '@playwright/test'
+import { loginAsSuperAdmin } from '../fixtures/auth'
 
-test('admin login → dashboard', async ({ page }) => {
-  await page.goto('/admin/login')
-  await expect(page).toHaveTitle(/Veridian CMS/)
+test.describe('admin-login', () => {
+  test('login page renders white-label Veridian', async ({ page }) => {
+    await page.goto('/admin/login')
+    await expect(page).toHaveTitle(/Veridian CMS/)
+    await expect(page.getByText(/Bienvenue sur votre espace de gestion Veridian/i)).toBeVisible()
+  })
 
-  // Page de login visible (white-label Veridian)
-  await expect(page.getByText(/Bienvenue sur votre espace de gestion Veridian/i)).toBeVisible()
+  test('login → dashboard navigation works', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+    await expect(page).toHaveURL(/\/admin(\/|$)/)
+    await expect(page.locator('nav.nav__wrap')).toBeVisible()
+  })
 
-  // TODO session prochaine : saisir creds + login + vérif dashboard
-  // await page.getByLabel('E-mail').fill(process.env.E2E_ADMIN_EMAIL!)
-  // await page.getByLabel('Mot de passe').fill(process.env.E2E_ADMIN_PASSWORD!)
-  // await page.getByRole('button', { name: /Connexion/i }).click()
-  // await expect(page.getByText(/Bonjour/)).toBeVisible() // BeforeDashboard
-})
+  test('login page pixel-perfect', async ({ page }) => {
+    await page.goto('/admin/login')
+    await expect(page.getByText(/Bienvenue sur votre espace de gestion Veridian/i)).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    await expect(page).toHaveScreenshot('login.png', {
+      maxDiffPixelRatio: 0.02,
+      fullPage: true,
+      animations: 'disabled',
+    })
+  })
 
-test('admin login page pixel-perfect', async ({ page }) => {
-  await page.goto('/admin/login')
-  await page.waitForLoadState('networkidle')
-  // Screenshot visuel du login — détecte toute régression CSS
-  await expect(page).toHaveScreenshot('login.png', {
-    maxDiffPixelRatio: 0.02,
-    fullPage: true,
+  test('dashboard pixel-perfect', async ({ page }) => {
+    await loginAsSuperAdmin(page)
+    await page.waitForLoadState('networkidle')
+    await expect(page).toHaveScreenshot('dashboard.png', {
+      maxDiffPixelRatio: 0.02,
+      fullPage: true,
+      animations: 'disabled',
+      mask: [
+        page.locator('time, [data-time], [class*="updatedAt"], [class*="createdAt"]'),
+        page.locator('[data-testid="last-updated"]'),
+      ],
+    })
   })
 })

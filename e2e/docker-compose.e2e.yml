@@ -1,0 +1,52 @@
+services:
+  cms-postgres-e2e:
+    image: postgres:16-alpine
+    container_name: cms-postgres-e2e
+    restart: "no"
+    tmpfs:
+      - /var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: veridian_cms_e2e
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: e2epass
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d veridian_cms_e2e"]
+      interval: 3s
+      timeout: 2s
+      retries: 15
+
+  cms-migrate:
+    image: veridian/cms-builder-e2e:${IMAGE_TAG:-local}
+    container_name: cms-migrate-e2e
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://cms:e2epass@cms-postgres-e2e:5432/veridian_cms_e2e
+      PAYLOAD_SECRET: e2e_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      NODE_ENV: production
+    depends_on:
+      cms-postgres-e2e:
+        condition: service_healthy
+    command: ["sh", "-c", "cd /app && pnpm payload migrate"]
+
+  cms-e2e:
+    image: veridian/cms-e2e:${IMAGE_TAG:-local}
+    container_name: cms-e2e
+    restart: "no"
+    ports:
+      - "127.0.0.1:3001:3000"
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SERVER_URL: http://localhost:3001
+      DATABASE_URL: postgresql://cms:e2epass@cms-postgres-e2e:5432/veridian_cms_e2e
+      PAYLOAD_SECRET: e2e_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      NEXT_TELEMETRY_DISABLED: "1"
+    depends_on:
+      cms-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health 2>&1 | grep -q '\"status\":\"ok\"'"]
+      interval: 4s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
