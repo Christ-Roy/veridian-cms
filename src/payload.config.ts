@@ -20,6 +20,7 @@ import { Tenants } from './collections/Tenants'
 import { Pages } from './collections/Pages'
 import { Header } from './globals/Header'
 import { Footer } from './globals/Footer'
+import { healthEndpoint } from './endpoints/health'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -101,6 +102,7 @@ export default buildConfig({
     },
   },
   collections: [Users, Media, Tenants, Pages, Header, Footer],
+  endpoints: [healthEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
@@ -111,6 +113,8 @@ export default buildConfig({
   }),
   sharp,
   cors: [
+    'https://cms.veridian.site',
+    'https://cms.staging.veridian.site',
     'https://demo-cms.veridian.site',
     'https://template-artisan.veridian.site',
     'https://template-restaurant.veridian.site',
