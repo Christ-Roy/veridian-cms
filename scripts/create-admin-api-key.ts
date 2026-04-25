@@ -23,6 +23,14 @@ async function main() {
   const apiKey = crypto.randomBytes(32).toString('hex')
   const randomPassword = crypto.randomBytes(24).toString('hex')
 
+  // Si user existe ET enableAPIKey actif ET on N'EST PAS en mode --rotate, skip silencieusement.
+  // Idempotent: appelable au deploy sans casser la clé en circulation.
+  const shouldRotate = process.argv.includes('--rotate')
+  if (existing.docs[0] && existing.docs[0].enableAPIKey && !shouldRotate) {
+    console.log(`OK User "${BOT_EMAIL}" existe deja avec API key (id=${existing.docs[0].id}, skip)`)
+    process.exit(0)
+  }
+
   if (existing.docs[0]) {
     await payload.update({
       collection: 'users',
@@ -33,7 +41,7 @@ async function main() {
         roles: ['super-admin'],
       },
     })
-    console.log(`✅ User "${BOT_EMAIL}" mis à jour (id=${existing.docs[0].id})`)
+    console.log(`OK User "${BOT_EMAIL}" mis a jour (id=${existing.docs[0].id})`)
   } else {
     const created = await payload.create({
       collection: 'users',
