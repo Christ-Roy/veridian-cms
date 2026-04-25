@@ -41,6 +41,7 @@ services:
       DATABASE_URL: postgresql://cms:e2epass@cms-postgres-e2e:5432/veridian_cms_e2e
       PAYLOAD_SECRET: e2e_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: "--max-old-space-size=1024"
     depends_on:
       cms-migrate:
         condition: service_completed_successfully
