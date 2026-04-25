@@ -2,20 +2,18 @@ import type { CollectionAfterChangeHook } from 'payload'
 
 /**
  * Hook afterChange sur Pages : trigger un rebuild CF Pages via GitHub Actions
- * workflow_dispatch dès qu'une page est publiée (status=published).
+ * workflow_dispatch dès qu'une page est publiée.
  *
- * Exige les env vars :
+ * Vars d'env requises :
  *   - GITHUB_TOKEN : PAT avec scope repo (workflow_dispatch)
  *   - GITHUB_REPO : ex "Christ-Roy/veridian-platform"
- *   - GITHUB_WORKFLOW : ex "sites-deploy.yml"
+ *   - GITHUB_WORKFLOW : ex "sites-deploy.yml" (optionnel, défaut sites-deploy.yml)
  *
- * Le tenant.slug est mappé sur le nom du site (convention : tenant-slug == site name,
- * sauf "demo" → "demo-cms").
+ * Le nom du site dispatché vient du champ `cfPagesProject` du tenant.
+ * Si non renseigné, fallback sur `template-${tenant.slug}` (convention legacy).
  */
 export const triggerSiteRebuild: CollectionAfterChangeHook = async ({
   doc,
-  previousDoc,
-  operation,
   req,
 }) => {
   const token = process.env.GITHUB_TOKEN
@@ -27,30 +25,21 @@ export const triggerSiteRebuild: CollectionAfterChangeHook = async ({
     return doc
   }
 
-  // Ne rebuild que sur publish (status passe à 'published') ou update de doc déjà publié
   if (doc._status !== 'published') {
     return doc
   }
-  if (operation === 'update' && previousDoc?._status !== 'published' && doc._status === 'published') {
-    // first publish — on rebuild
-  }
 
-  const tenantId =
-    typeof doc.tenant === 'object' && doc.tenant?.slug
-      ? doc.tenant.slug
-      : null
-
-  if (!tenantId) {
-    req.payload.logger.warn('[triggerSiteRebuild] tenant.slug introuvable, skip')
+  const tenant = typeof doc.tenant === 'object' ? doc.tenant : null
+  if (!tenant) {
+    req.payload.logger.warn('[triggerSiteRebuild] tenant non populé, skip')
     return doc
   }
 
-  const siteMap: Record<string, string> = {
-    demo: 'demo-cms',
-    artisan: 'template-artisan',
-    restaurant: 'template-restaurant',
+  const site: string = tenant.cfPagesProject || (tenant.slug ? `template-${tenant.slug}` : '')
+  if (!site) {
+    req.payload.logger.warn('[triggerSiteRebuild] aucun cfPagesProject ni slug, skip')
+    return doc
   }
-  const site = siteMap[tenantId] || `template-${tenantId}`
 
   try {
     const res = await fetch(
@@ -66,10 +55,10 @@ export const triggerSiteRebuild: CollectionAfterChangeHook = async ({
       },
     )
     if (res.ok) {
-      req.payload.logger.info(`[triggerSiteRebuild] ✅ rebuild déclenché pour ${site}`)
+      req.payload.logger.info(`[triggerSiteRebuild] rebuild déclenché pour ${site}`)
     } else {
       const text = await res.text()
-      req.payload.logger.error(`[triggerSiteRebuild] ❌ ${res.status} ${text}`)
+      req.payload.logger.error(`[triggerSiteRebuild] ${res.status} ${text}`)
     }
   } catch (err) {
     req.payload.logger.error({ err }, '[triggerSiteRebuild] fetch failed')

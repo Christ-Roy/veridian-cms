@@ -190,6 +190,10 @@ export interface Tenant {
    */
   slug: string;
   /**
+   * URL HTTPS du site déployé pour ce client (ex : https://morel-volailles.fr). Utilisée pour la live preview et les builds.
+   */
+  siteUrl?: string | null;
+  /**
    * Slug du projet CF Pages associé (pour le rebuild auto)
    */
   cfPagesProject?: string | null;
@@ -992,6 +996,7 @@ export interface MediaSelect<T extends boolean = true> {
 export interface TenantsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
+  siteUrl?: T;
   cfPagesProject?: T;
   cfDeployHook?: T;
   updatedAt?: T;

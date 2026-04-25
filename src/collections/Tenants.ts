@@ -37,6 +37,15 @@ export const Tenants: CollectionConfig = {
       admin: { description: 'Ex : morel-volailles, dupont-btp' },
     },
     {
+      name: 'siteUrl',
+      type: 'text',
+      label: 'URL du site public',
+      admin: {
+        description: 'URL HTTPS du site déployé pour ce client (ex : https://morel-volailles.fr). Utilisée pour la live preview et les builds.',
+        placeholder: 'https://exemple.fr',
+      },
+    },
+    {
       name: 'cfPagesProject',
       type: 'text',
       label: 'Projet Cloudflare Pages',

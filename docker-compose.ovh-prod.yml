@@ -1,0 +1,52 @@
+services:
+  cms:
+    image: ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG:-latest}
+    container_name: veridian-cms-prod
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      SERVER_URL: ${SERVER_URL:-https://cms.veridian.site}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cms}:${POSTGRES_PASSWORD}@cms-postgres:5432/${POSTGRES_DB:-veridian_cms}
+      NODE_OPTIONS: "--max-old-space-size=1024"
+    depends_on:
+      cms-postgres:
+        condition: service_healthy
+    networks:
+      - dokploy-network
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.veridian-cms-prod.rule=Host(`cms.veridian.site`)"
+      - "traefik.http.routers.veridian-cms-prod.entrypoints=websecure"
+      - "traefik.http.routers.veridian-cms-prod.tls=true"
+      - "traefik.http.routers.veridian-cms-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.veridian-cms-prod.loadbalancer.server.port=3000"
+
+  cms-postgres:
+    image: postgres:16-alpine
+    container_name: veridian-cms-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-veridian_cms}
+      POSTGRES_USER: ${POSTGRES_USER:-cms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cms-pgdata-prod:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cms} -d ${POSTGRES_DB:-veridian_cms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cms-pgdata-prod:
+
+networks:
+  dokploy-network:
+    external: true

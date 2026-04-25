@@ -25,19 +25,18 @@ import { healthEndpoint } from './endpoints/health'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-const SITE_URL_BY_TENANT_SLUG: Record<string, string> = {
-  demo: 'https://demo-cms.veridian.site',
-  artisan: 'https://template-artisan.veridian.site',
-  restaurant: 'https://template-restaurant.veridian.site',
-}
-const SITE_URL_BY_TENANT_ID: Record<number, string> = {
-  1: SITE_URL_BY_TENANT_SLUG.demo,
-  2: SITE_URL_BY_TENANT_SLUG.artisan,
-  3: SITE_URL_BY_TENANT_SLUG.restaurant,
+const SERVER_URL = process.env.SERVER_URL
+if (!SERVER_URL && process.env.NODE_ENV === 'production') {
+  throw new Error('SERVER_URL env var required in production')
 }
 
+const corsOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
 export default buildConfig({
-  serverURL: process.env.SERVER_URL || 'https://cms.staging.veridian.site',
+  serverURL: SERVER_URL || 'http://localhost:3000',
 
   // i18n : français par défaut pour le client, anglais en option pour Robert
   i18n: {
@@ -83,15 +82,11 @@ export default buildConfig({
     },
     livePreview: {
       url: ({ data }) => {
-        let base: string | undefined
-        if (typeof data?.tenant === 'object' && data?.tenant?.slug) {
-          base = SITE_URL_BY_TENANT_SLUG[data.tenant.slug]
-        } else if (typeof data?.tenant === 'number') {
-          base = SITE_URL_BY_TENANT_ID[data.tenant]
-        }
-        if (!base) base = SITE_URL_BY_TENANT_SLUG.demo
+        const t = data?.tenant
+        const base: string | undefined = typeof t === 'object' && t?.siteUrl ? t.siteUrl : undefined
+        if (!base) return ''
         const slug = data?.slug === 'home' ? '' : data?.slug || ''
-        return `${base}/${slug}${slug ? '/' : ''}?preview=1`
+        return `${base.replace(/\/$/, '')}/${slug}${slug ? '/' : ''}?preview=1`
       },
       collections: ['pages'],
       breakpoints: [
@@ -113,16 +108,7 @@ export default buildConfig({
     push: process.env.PAYLOAD_DB_PUSH === 'true',
   }),
   sharp,
-  cors: [
-    'https://cms.veridian.site',
-    'https://cms.staging.veridian.site',
-    'https://demo-cms.veridian.site',
-    'https://template-artisan.veridian.site',
-    'https://template-restaurant.veridian.site',
-    'http://localhost:3301',
-    'http://localhost:3310',
-    'http://localhost:3311',
-  ],
+  cors: corsOrigins.length > 0 ? corsOrigins : '*',
   email: process.env.SMTP_HOST
     ? nodemailerAdapter({
         defaultFromAddress: process.env.SMTP_FROM || 'cms@veridian.site',
