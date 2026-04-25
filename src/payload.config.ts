@@ -105,7 +105,12 @@ export default buildConfig({
     outputFile: path.resolve(dirname, 'payload-types.ts'),
   },
   db: postgresAdapter({
-    pool: { connectionString: process.env.DATABASE_URL || '' },
+    pool: {
+      connectionString: process.env.DATABASE_URL || '',
+      max: 20,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+    },
     push: process.env.PAYLOAD_DB_PUSH === 'true',
   }),
   sharp,
