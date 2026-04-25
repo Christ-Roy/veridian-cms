@@ -26,7 +26,8 @@ const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
 const SERVER_URL = process.env.SERVER_URL
-if (!SERVER_URL && process.env.NODE_ENV === 'production') {
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+if (!SERVER_URL && process.env.NODE_ENV === 'production' && !isBuildPhase) {
   throw new Error('SERVER_URL env var required in production')
 }
 
