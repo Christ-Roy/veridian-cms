@@ -9,7 +9,7 @@ export const Footer: CollectionConfig = {
   },
   admin: {
     description: 'Pied de page — infos entreprise, contact, réseaux sociaux.',
-    group: 'Personnalisation',
+    group: 'Mon site',
   },
   access: {
     read: ({ req }) => Boolean(req.user),

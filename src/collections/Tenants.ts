@@ -49,13 +49,21 @@ export const Tenants: CollectionConfig = {
       name: 'cfPagesProject',
       type: 'text',
       label: 'Projet Cloudflare Pages',
-      admin: { description: 'Slug du projet CF Pages associé (pour le rebuild auto)' },
+      admin: {
+        description: 'Slug du projet CF Pages associé (pour le rebuild auto)',
+        condition: (_, __, { user }) =>
+          Boolean((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
+      },
     },
     {
       name: 'cfDeployHook',
       type: 'text',
       label: 'URL du Deploy Hook Cloudflare',
-      admin: { description: 'URL appelée pour rebuild le site quand une page est publiée' },
+      admin: {
+        description: 'URL appelée pour rebuild le site quand une page est publiée',
+        condition: (_, __, { user }) =>
+          Boolean((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
+      },
     },
   ],
 }

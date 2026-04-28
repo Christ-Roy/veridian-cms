@@ -82,13 +82,12 @@ export default buildConfig({
       },
     },
     livePreview: {
-      url: async ({ data, payload }) => {
+      url: async ({ data, payload, collectionConfig, globalConfig }) => {
         const t = data?.tenant
         let base: string | undefined
         if (typeof t === 'object' && t?.siteUrl) {
           base = t.siteUrl
         } else if (typeof t === 'number' || typeof t === 'string') {
-          // tenant arrive en ID seul dans l'admin → on fetch
           try {
             const tenant = await payload.findByID({ collection: 'tenants', id: t, depth: 0 })
             base = (tenant as { siteUrl?: string })?.siteUrl
@@ -96,16 +95,22 @@ export default buildConfig({
             base = undefined
           }
         }
-        // Fallback explicite pour éviter l'iframe vide qui charge le CMS lui-même
         if (!base) return 'about:blank'
-        const slug = data?.slug === 'home' ? '' : data?.slug || ''
+        // Header/Footer : preview sur la page d'accueil (ils s'affichent partout)
+        const editingChrome =
+          collectionConfig?.slug === 'header' ||
+          collectionConfig?.slug === 'footer' ||
+          globalConfig?.slug === 'header' ||
+          globalConfig?.slug === 'footer'
+        const slug = editingChrome ? '' : data?.slug === 'home' ? '' : data?.slug || ''
         return `${base.replace(/\/$/, '')}/${slug}${slug ? '/' : ''}?preview=1`
       },
-      collections: ['pages'],
+      collections: ['pages', 'header', 'footer'],
       breakpoints: [
         { label: 'Mobile', name: 'mobile', width: 375, height: 667 },
         { label: 'Tablet', name: 'tablet', width: 768, height: 1024 },
-        { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
+        { label: 'Desktop', name: 'desktop', width: 1280, height: 800 },
+        { label: 'Plein écran', name: 'fullhd', width: 1920, height: 1080 },
       ],
     },
   },
@@ -156,11 +161,22 @@ export default buildConfig({
       formOverrides: {
         admin: {
           description: 'Formulaires éditables par le client (contact, devis...).',
+          group: 'Formulaires',
+        },
+      },
+      formSubmissionOverrides: {
+        admin: {
+          group: 'Formulaires',
         },
       },
     }),
     redirectsPlugin({
       collections: ['pages'],
+      overrides: {
+        admin: {
+          group: 'Administration',
+        },
+      },
     }),
     // searchPlugin disabled V1 (incompat multi-tenant)
     nestedDocsPlugin({

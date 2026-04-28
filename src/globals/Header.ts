@@ -10,7 +10,7 @@ export const Header: CollectionConfig = {
   admin: {
     description: 'Barre de navigation en haut du site.',
     useAsTitle: 'logoText',
-    group: 'Personnalisation',
+    group: 'Mon site',
   },
   access: {
     read: ({ req }) => Boolean(req.user),

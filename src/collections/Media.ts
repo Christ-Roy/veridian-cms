@@ -9,7 +9,7 @@ export const Media: CollectionConfig = {
   admin: {
     useAsTitle: 'alt',
     description: 'Toutes vos images du site. Téléversez, recadrez, réutilisez.',
-    group: 'Contenu',
+    group: 'Mon site',
   },
   access: {
     read: ({ req }) => Boolean(req.user),

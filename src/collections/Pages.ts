@@ -7,6 +7,10 @@ import {
   RichTextBlock,
   CTABlock,
   FormBlock,
+  Cards2Block,
+  Cards4WithIconsBlock,
+  LogoWallBlock,
+  SplitImageTextBlock,
 } from '../blocks'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
@@ -20,7 +24,7 @@ export const Pages: CollectionConfig = {
     useAsTitle: 'title',
     description: 'Les pages de votre site — composez-les avec des blocs modulaires.',
     defaultColumns: ['title', 'slug', 'tenant', '_status', 'updatedAt'],
-    group: 'Contenu',
+    group: 'Mon site',
   },
   access: {
     read: ({ req }) => Boolean(req.user),
