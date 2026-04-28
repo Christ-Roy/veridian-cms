@@ -52,7 +52,7 @@ export const Pages: CollectionConfig = {
       minRows: 0,
       admin: {
         description: 'Composez votre page avec des blocs modulaires (Hero, Services, Galerie, Témoignages, Texte riche, Appel à l\'action).',
-        initCollapsed: true,
+        initCollapsed: false,
       },
       blocks: [HeroBlock, ServicesBlock, GalleryBlock, TestimonialsBlock, RichTextBlock, CTABlock, FormBlock],
     },

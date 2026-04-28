@@ -82,10 +82,22 @@ export default buildConfig({
       },
     },
     livePreview: {
-      url: ({ data }) => {
+      url: async ({ data, payload }) => {
         const t = data?.tenant
-        const base: string | undefined = typeof t === 'object' && t?.siteUrl ? t.siteUrl : undefined
-        if (!base) return ''
+        let base: string | undefined
+        if (typeof t === 'object' && t?.siteUrl) {
+          base = t.siteUrl
+        } else if (typeof t === 'number' || typeof t === 'string') {
+          // tenant arrive en ID seul dans l'admin → on fetch
+          try {
+            const tenant = await payload.findByID({ collection: 'tenants', id: t, depth: 0 })
+            base = (tenant as { siteUrl?: string })?.siteUrl
+          } catch {
+            base = undefined
+          }
+        }
+        // Fallback explicite pour éviter l'iframe vide qui charge le CMS lui-même
+        if (!base) return 'about:blank'
         const slug = data?.slug === 'home' ? '' : data?.slug || ''
         return `${base.replace(/\/$/, '')}/${slug}${slug ? '/' : ''}?preview=1`
       },
