@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
 export const Footer: CollectionConfig = {
   slug: 'footer',
@@ -12,6 +13,9 @@ export const Footer: CollectionConfig = {
   },
   access: {
     read: ({ req }) => Boolean(req.user),
+  },
+  hooks: {
+    afterChange: [triggerSiteRebuild],
   },
   fields: [
     {

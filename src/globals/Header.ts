@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
 export const Header: CollectionConfig = {
   slug: 'header',
@@ -13,6 +14,9 @@ export const Header: CollectionConfig = {
   },
   access: {
     read: ({ req }) => Boolean(req.user),
+  },
+  hooks: {
+    afterChange: [triggerSiteRebuild],
   },
   fields: [
     { name: 'logo', type: 'upload', relationTo: 'media', label: 'Logo' },

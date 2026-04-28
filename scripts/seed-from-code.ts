@@ -31,8 +31,9 @@ if (fs.existsSync(credsPath)) {
     if (m) creds[m[1]] = m[2]
   }
 }
-const CMS_URL = creds.CMS_URL || 'https://cms.staging.veridian.site'
-const ADMIN_KEY = creds.CMS_ADMIN_API_KEY
+// Env vars override file creds (so we can target prod with CMS_URL=https://cms.veridian.site)
+const CMS_URL = process.env.CMS_URL || creds.CMS_URL || 'https://cms.staging.veridian.site'
+const ADMIN_KEY = process.env.CMS_ADMIN_API_KEY || creds.CMS_ADMIN_API_KEY
 if (!ADMIN_KEY) {
   console.error('❌ CMS_ADMIN_API_KEY absente de ~/credentials/.all-creds.env')
   process.exit(1)
