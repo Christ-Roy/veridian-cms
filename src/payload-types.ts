@@ -314,6 +314,96 @@ export interface Page {
             blockType: 'services';
           }
         | {
+            eyebrow?: string | null;
+            title?: string | null;
+            subtitle?: string | null;
+            /**
+             * Exactement 2 cartes côte à côte.
+             */
+            cards?:
+              | {
+                  /**
+                   * Ex : "Recommandé · TPE portable"
+                   */
+                  eyebrow?: string | null;
+                  title: string;
+                  description: string;
+                  points?:
+                    | {
+                        text: string;
+                        id?: string | null;
+                      }[]
+                    | null;
+                  image?: (number | null) | Media;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'cards2';
+          }
+        | {
+            eyebrow?: string | null;
+            title?: string | null;
+            subtitle?: string | null;
+            /**
+             * De 2 à 4 cartes alignées (services, catégories, etc.).
+             */
+            cards?:
+              | {
+                  icon:
+                    | 'phone'
+                    | 'check'
+                    | 'settings'
+                    | 'tools'
+                    | 'mail'
+                    | 'shield'
+                    | 'award'
+                    | 'star'
+                    | 'package'
+                    | 'globe'
+                    | 'map-pin'
+                    | 'truck';
+                  title: string;
+                  description: string;
+                  linkUrl?: string | null;
+                  linkLabel?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'cards4WithIcons';
+          }
+        | {
+            eyebrow?: string | null;
+            title?: string | null;
+            image?: (number | null) | Media;
+            /**
+             * Si pas d'upload, on peut donner une URL d'image (ex: /images/legacy/...). Utile pour le seed initial.
+             */
+            imageFallbackUrl?: string | null;
+            imageAlt?: string | null;
+            imagePosition?: ('left' | 'right') | null;
+            paragraphs?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
+            ctas?:
+              | {
+                  label: string;
+                  url: string;
+                  variant?: ('primary' | 'secondary') | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'splitImageText';
+          }
+        | {
             title?: string | null;
             subtitle?: string | null;
             images?:
@@ -326,6 +416,22 @@ export interface Page {
             id?: string | null;
             blockName?: string | null;
             blockType: 'gallery';
+          }
+        | {
+            eyebrow?: string | null;
+            title?: string | null;
+            subtitle?: string | null;
+            logos?:
+              | {
+                  name: string;
+                  image?: (number | null) | Media;
+                  linkUrl?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'logoWall';
           }
         | {
             title?: string | null;
@@ -1047,6 +1153,75 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        cards2?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              cards?:
+                | T
+                | {
+                    eyebrow?: T;
+                    title?: T;
+                    description?: T;
+                    points?:
+                      | T
+                      | {
+                          text?: T;
+                          id?: T;
+                        };
+                    image?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        cards4WithIcons?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              cards?:
+                | T
+                | {
+                    icon?: T;
+                    title?: T;
+                    description?: T;
+                    linkUrl?: T;
+                    linkLabel?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        splitImageText?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              image?: T;
+              imageFallbackUrl?: T;
+              imageAlt?: T;
+              imagePosition?: T;
+              paragraphs?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              ctas?:
+                | T
+                | {
+                    label?: T;
+                    url?: T;
+                    variant?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
         gallery?:
           | T
           | {
@@ -1057,6 +1232,23 @@ export interface PagesSelect<T extends boolean = true> {
                 | {
                     image?: T;
                     caption?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
+        logoWall?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              logos?:
+                | T
+                | {
+                    name?: T;
+                    image?: T;
+                    linkUrl?: T;
                     id?: T;
                   };
               id?: T;

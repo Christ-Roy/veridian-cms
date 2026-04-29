@@ -184,8 +184,9 @@ async function main() {
     }
 
     // ==== PAGES (default) ====
-    // Cherche un export qui correspond au nom du fichier (ex: services.ts → SERVICES)
-    const nameUpper = name.toUpperCase()
+    // Cherche un export qui correspond au nom du fichier
+    // services.ts → SERVICES ; politique-confidentialite.ts → POLITIQUE_CONFIDENTIALITE
+    const nameUpper = name.toUpperCase().replace(/-/g, '_')
     const rawBlocks =
       mod[nameUpper] || mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
     if (!Array.isArray(rawBlocks)) {
