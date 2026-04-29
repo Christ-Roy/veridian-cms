@@ -6,7 +6,14 @@ export const SplitImageTextBlock: Block = {
   fields: [
     { name: 'eyebrow', type: 'text', label: 'Pré-titre' },
     { name: 'title', type: 'text', label: 'Titre' },
-    { name: 'image', type: 'upload', relationTo: 'media', required: true, label: 'Image' },
+    { name: 'image', type: 'upload', relationTo: 'media', label: 'Image (upload)' },
+    {
+      name: 'imageFallbackUrl',
+      type: 'text',
+      label: 'URL image (alternative à upload)',
+      admin: { description: 'Si pas d\'upload, on peut donner une URL d\'image (ex: /images/legacy/...). Utile pour le seed initial.' },
+    },
+    { name: 'imageAlt', type: 'text', label: 'Texte alternatif (accessibilité)' },
     {
       name: 'imagePosition',
       type: 'select',
