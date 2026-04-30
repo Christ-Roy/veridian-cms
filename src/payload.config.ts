@@ -107,10 +107,11 @@ export default buildConfig({
       },
       collections: ['pages', 'header', 'footer'],
       breakpoints: [
-        { label: 'Mobile', name: 'mobile', width: 375, height: 667 },
-        { label: 'Tablet', name: 'tablet', width: 768, height: 1024 },
-        { label: 'Desktop', name: 'desktop', width: 1280, height: 800 },
-        { label: 'Plein écran', name: 'fullhd', width: 1920, height: 1080 },
+        // Largeurs adaptées à l'iframe preview (pas le viewport réel)
+        // Pour voir le site en taille réelle desktop, utiliser le bouton "ouvrir dans un nouvel onglet"
+        { label: 'Mobile (iPhone)', name: 'mobile', width: 375, height: 812 },
+        { label: 'Tablette (iPad)', name: 'tablet', width: 768, height: 1024 },
+        { label: 'Aperçu compact', name: 'compact', width: 1024, height: 768 },
       ],
     },
   },
@@ -151,8 +152,50 @@ export default buildConfig({
     seoPlugin({
       collections: ['pages'],
       uploadsCollection: 'media',
-      generateTitle: ({ doc }) =>
-        (doc as { title?: string })?.title ?? 'Page',
+      // Titre = titre de la page, max 60 chars (recommandation Google)
+      generateTitle: ({ doc }) => {
+        const title = (doc as { title?: string })?.title ?? 'Page'
+        return title.length > 60 ? title.slice(0, 57) + '…' : title
+      },
+      // Description = sous-titre du hero ou premier paragraphe richtext, max 155 chars
+      generateDescription: ({ doc }) => {
+        const blocks = (doc as { blocks?: Array<Record<string, unknown>> })?.blocks ?? []
+        for (const b of blocks) {
+          if (b.blockType === 'hero' && typeof b.subtitle === 'string' && b.subtitle.length > 20) {
+            const s = b.subtitle.replace(/\s+/g, ' ').trim()
+            return s.length > 155 ? s.slice(0, 152) + '…' : s
+          }
+        }
+        for (const b of blocks) {
+          if (b.blockType === 'richtext') {
+            const body = b.body as { root?: { children?: Array<{ children?: Array<{ text?: string }> }> } }
+            const firstPara = body?.root?.children?.[0]?.children?.map((t) => t.text || '').join('') ?? ''
+            const s = firstPara.replace(/\s+/g, ' ').trim()
+            if (s.length > 20) return s.length > 155 ? s.slice(0, 152) + '…' : s
+          }
+        }
+        return ''
+      },
+      // Image OG = image du hero ou de la galerie principale
+      generateImage: ({ doc }) => {
+        const blocks = (doc as { blocks?: Array<Record<string, unknown>> })?.blocks ?? []
+        for (const b of blocks) {
+          if ((b.blockType === 'hero' || b.blockType === 'gallery') && b.image) {
+            const img = b.image as { id?: string | number }
+            if (img?.id) return img.id
+          }
+        }
+        return ''
+      },
+      // URL OG = URL absolue de la page sur le site du tenant
+      generateURL: ({ doc, collectionConfig }) => {
+        const tenant = (doc as { tenant?: { siteUrl?: string } })?.tenant
+        const base = tenant?.siteUrl?.replace(/\/$/, '') ?? ''
+        const slug = (doc as { slug?: string })?.slug ?? ''
+        const path = slug === 'home' ? '' : `/${slug}`
+        return `${base}${path}`
+      },
+      tabbedUI: true,
     }),
     formBuilderPlugin({
       fields: {
