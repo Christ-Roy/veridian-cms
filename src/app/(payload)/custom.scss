@@ -215,3 +215,60 @@ $veridian-mint-mid: #bbf7d0;
     flex-shrink: 0;
   }
 }
+
+/* ========================================
+   Live Preview — maximiser la zone iframe
+   ========================================
+   En mode Aperçu en direct, l'iframe est par défaut limitée à ~960px
+   alors qu'on a beaucoup plus d'espace écran. On collapse la sidebar
+   en icon-only (50px) et on étend la preview au max du conteneur.
+   Scopé via :has() à `.collection-edit--is-live-previewing` pour ne
+   PAS casser l'admin hors preview. */
+body:has(.collection-edit--is-live-previewing) {
+  /* Sidebar collapsed icon-only */
+  aside.nav.nav--nav-open {
+    width: 50px !important;
+    min-width: 50px !important;
+    overflow: hidden;
+
+    .nav-group__label,
+    .nav__link-label,
+    .profile-card,
+    h2,
+    h3,
+    p,
+    span:not([class*='icon']) {
+      display: none !important;
+    }
+
+    .nav__link {
+      justify-content: center;
+      padding: 0.75rem 0;
+    }
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  .template-default--nav-open {
+    padding-left: 60px !important;
+  }
+
+  /* Preview window + iframe → 100% du conteneur disponible */
+  .live-preview-window,
+  .live-preview-window__wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .live-preview-window iframe {
+    width: 100% !important;
+  }
+
+  /* Form column un peu plus compacte pour donner plus d'air à la preview */
+  .collection-edit__form {
+    max-width: 580px;
+  }
+}
