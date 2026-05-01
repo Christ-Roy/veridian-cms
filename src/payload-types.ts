@@ -71,6 +71,7 @@ export interface Config {
     media: Media;
     tenants: Tenant;
     pages: Page;
+    products: Product;
     header: Header;
     footer: Footer;
     forms: Form;
@@ -88,6 +89,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    products: ProductsSelect<false> | ProductsSelect<true>;
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
@@ -694,6 +696,62 @@ export interface Form {
   createdAt: string;
 }
 /**
+ * Catalogue produits — TPE, caisses, périphériques, accessoires, fournitures, forfaits, location.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products".
+ */
+export interface Product {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  /**
+   * Ex : Verifone Victa VP100, Caisse Aures TRX3000…
+   */
+  name: string;
+  /**
+   * Ex : verifone-victa-vp100. Utilisé dans l'URL et pour pré-remplir le formulaire de contact.
+   */
+  slug: string;
+  category: 'tpe' | 'caisses' | 'peripheriques' | 'accessoires' | 'fournitures' | 'forfaits' | 'location';
+  /**
+   * Ex : Verifone, Ingenico, Pax, Aures, Sunmi, U Pos, Perimatic, Kortex, CSI…
+   */
+  brand?: string | null;
+  /**
+   * Format libre, ex : "1 400 € HT" ou "à partir de 30 € HT". Laisser vide si uniquement en location.
+   */
+  priceHT?: string | null;
+  /**
+   * Format libre, ex : "45 € / mois HT". Laisser vide si vente uniquement.
+   */
+  rentMonth?: string | null;
+  image?: (number | null) | Media;
+  /**
+   * Si vous n'uploadez pas d'image, vous pouvez donner une URL (ex : /images/products/xxx.png).
+   */
+  imageFallbackUrl?: string | null;
+  /**
+   * Liste de points (1 ligne par caractéristique). Affichés en bullets sur la fiche produit.
+   */
+  description?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Plus petit = affiché en premier. Laisse 100 par défaut, baisse pour mettre en avant.
+   */
+  order?: number | null;
+  /**
+   * Référence privée (ex : N°221). Optionnelle, non affichée publiquement.
+   */
+  refLegacy?: string | null;
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
  * Barre de navigation en haut du site.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -946,6 +1004,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: number | Page;
+      } | null)
+    | ({
+        relationTo: 'products';
+        value: number | Product;
       } | null)
     | ({
         relationTo: 'header';
@@ -1315,6 +1377,32 @@ export interface PagesSelect<T extends boolean = true> {
         label?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "products_select".
+ */
+export interface ProductsSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  slug?: T;
+  category?: T;
+  brand?: T;
+  priceHT?: T;
+  rentMonth?: T;
+  image?: T;
+  imageFallbackUrl?: T;
+  description?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  order?: T;
+  refLegacy?: T;
   updatedAt?: T;
   createdAt?: T;
   _status?: T;

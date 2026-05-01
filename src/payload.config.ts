@@ -18,6 +18,7 @@ import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Tenants } from './collections/Tenants'
 import { Pages } from './collections/Pages'
+import { Products } from './collections/Products'
 import { Header } from './globals/Header'
 import { Footer } from './globals/Footer'
 import { healthEndpoint } from './endpoints/health'
@@ -115,7 +116,7 @@ export default buildConfig({
       ],
     },
   },
-  collections: [Users, Media, Tenants, Pages, Header, Footer],
+  collections: [Users, Media, Tenants, Pages, Products, Header, Footer],
   endpoints: [healthEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
@@ -231,6 +232,7 @@ export default buildConfig({
     multiTenantPlugin({
       collections: {
         pages: {},
+        products: {},
         media: {},
         forms: {},
         'form-submissions': {},
