@@ -43,7 +43,7 @@ const autoAttachTenant: CollectionAfterChangeHook = async ({
       collection: 'users',
       id: doc.id,
       data: {
-        tenants: [{ tenant: tenantId, roles: ['tenant-viewer'] }],
+        tenants: [{ tenant: tenantId }],
       },
       req,
       // Évite la récursion infinie du hook
