@@ -1,29 +1,43 @@
 import React from 'react'
 
-/** Grand logo affiché sur la page de login. */
+/**
+ * Grand logo Veridian — page de login.
+ * Charte officielle : fond #1a3d2f / symbole #86efac.
+ */
 export const Logo: React.FC = () => (
   <div
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '0.75rem',
+      gap: '0.875rem',
       fontWeight: 700,
       fontSize: '1.75rem',
-      color: '#15803d',
+      color: '#1a3d2f',
     }}
   >
-    <svg viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" style={{ width: 40, height: 40 }}>
-      <circle cx="20" cy="20" r="18" fill="#16a34a" />
-      <path
-        d="M12 20 L18 26 L28 14"
-        stroke="white"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        fill="none"
-      />
+    <svg
+      viewBox="0 0 32 32"
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      style={{ width: 52, height: 52 }}
+      aria-label="Veridian"
+    >
+      <rect width="32" height="32" rx="10" fill="#1a3d2f" />
+      <text
+        x="50%"
+        y="58%"
+        dominantBaseline="middle"
+        textAnchor="middle"
+        fill="#86efac"
+        style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 800, fontSize: 20 }}
+      >
+        V
+      </text>
     </svg>
-    <span>Veridian CMS</span>
+    <span>
+      Veridian
+      <span style={{ color: '#86efac', marginLeft: 4 }}>CMS</span>
+    </span>
   </div>
 )
 

@@ -1,0 +1,191 @@
+/**
+ * Veridian CMS — custom.scss
+ *
+ * Personnalisation de l'admin Payload :
+ *  - Sidebar : gradient vert menthe (charte Veridian #1a3d2f → #86efac très dilué)
+ *  - Carte profil utilisateur en bas (pattern moderne SaaS)
+ *  - Active link mis en avant en menthe
+ */
+
+// Couleurs charte Veridian
+$veridian-dark: #1a3d2f;
+$veridian-mint: #86efac;
+$veridian-mint-light: #f0fdf4;
+$veridian-mint-soft: #dcfce7;
+$veridian-mint-mid: #bbf7d0;
+
+/* ========================================
+   SIDEBAR — gradient menthe + finitions
+   ======================================== */
+.nav {
+  background: linear-gradient(
+    175deg,
+    $veridian-mint-light 0%,
+    $veridian-mint-soft 55%,
+    $veridian-mint-mid 100%
+  ) !important;
+  border-right: 1px solid rgba($veridian-dark, 0.08);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.4);
+
+  &__scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding-top: calc(var(--app-header-height, 60px) + 8px);
+    padding-bottom: 0; // la carte profil en bas gère son propre padding
+  }
+
+  &__wrap {
+    flex: 1 1 auto;
+    padding-bottom: 8px;
+  }
+
+  /* Liens de navigation (Pages, Médias, Tenants, etc.) */
+  &__link {
+    color: $veridian-dark !important;
+    font-weight: 500;
+    border-radius: 8px;
+    margin: 2px 10px;
+    padding: 9px 12px;
+    transition: background 0.15s ease, color 0.15s ease;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.55);
+      color: $veridian-dark !important;
+    }
+
+    /* Page active : fond menthe foncé + texte clair */
+    &-indicator + &-label,
+    &-label {
+      letter-spacing: -0.01em;
+    }
+  }
+
+  /* Page courante (div.nav__link sans Link, signalé par link-indicator) */
+  div.nav__link:has(.nav__link-indicator) {
+    background: $veridian-dark !important;
+    color: white !important;
+
+    .nav__link-label {
+      color: white !important;
+    }
+
+    .nav__link-indicator {
+      background: $veridian-mint !important;
+    }
+  }
+
+  /* Labels de groupe (Administration, Formulaires, etc.) */
+  .nav-group__toggle,
+  [class*="nav-group__toggle"] {
+    color: rgba($veridian-dark, 0.55) !important;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* ========================================
+     Bandeau bas — carte profil utilisateur
+     ======================================== */
+  &__controls {
+    margin-top: auto;
+    padding: 14px 12px 16px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba($veridian-dark, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    button,
+    a {
+      color: $veridian-dark;
+
+      &:hover {
+        color: $veridian-dark;
+        opacity: 0.7;
+      }
+    }
+  }
+}
+
+/* ========================================
+   Carte profil custom (composant afterNavLinks)
+   ======================================== */
+.veridian-profile {
+  margin: 14px 10px 4px;
+  padding: 12px;
+  background: white;
+  border: 1px solid rgba($veridian-dark, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba($veridian-dark, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: auto; // pousse la carte vers le bas du nav__wrap
+
+  &__avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: $veridian-dark;
+    color: $veridian-mint;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+
+  &__info {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: $veridian-dark;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__role {
+    font-size: 11px;
+    color: rgba($veridian-dark, 0.55);
+    margin-top: 1px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* ========================================
+   AppHeader (top bar) — coordonner avec la sidebar
+   ======================================== */
+.app-header {
+  background: white;
+  border-bottom: 1px solid rgba($veridian-dark, 0.08);
+}
+
+/* ========================================
+   BeforeLogin / Login page — affiner
+   ======================================== */
+.template-minimal {
+  background: linear-gradient(180deg, $veridian-mint-light 0%, white 60%);
+}
+
+/* ========================================
+   Bouton primaire — en menthe Veridian
+   ======================================== */
+.btn--style-primary {
+  background: $veridian-dark;
+  border-color: $veridian-dark;
+
+  &:hover:not(:disabled) {
+    background: darken($veridian-dark, 4%);
+    border-color: darken($veridian-dark, 4%);
+  }
+}

@@ -1,22 +1,29 @@
 import React from 'react'
 
-/** Petit logo Veridian affiché dans la sidebar de l'admin. */
+/**
+ * Petit logo Veridian (V menthe sur fond vert foncé) — sidebar admin.
+ * Charte officielle : fond #1a3d2f / symbole #86efac, rect rounded 10/32.
+ * Source : https://veridian.site/icon.svg
+ */
 export const Icon: React.FC = () => (
   <svg
-    viewBox="0 0 40 40"
+    viewBox="0 0 32 32"
     xmlns="http://www.w3.org/2000/svg"
-    style={{ width: 28, height: 28 }}
+    fill="none"
+    style={{ width: 30, height: 30 }}
     aria-label="Veridian"
   >
-    <circle cx="20" cy="20" r="18" fill="#16a34a" />
-    <path
-      d="M12 20 L18 26 L28 14"
-      stroke="white"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      fill="none"
-    />
+    <rect width="32" height="32" rx="10" fill="#1a3d2f" />
+    <text
+      x="50%"
+      y="58%"
+      dominantBaseline="middle"
+      textAnchor="middle"
+      fill="#86efac"
+      style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 800, fontSize: 20 }}
+    >
+      V
+    </text>
   </svg>
 )
 
