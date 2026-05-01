@@ -189,3 +189,29 @@ $veridian-mint-mid: #bbf7d0;
     border-color: darken($veridian-dark, 4%);
   }
 }
+
+/* ========================================
+   Dashboard — cacher la modular-dashboard native
+   ========================================
+   On a déjà toute l'info dans le BeforeDashboard (mosaïque 6 tuiles)
+   et la sidebar. La modular-dashboard native (cards "Utilisateurs / Clients
+   / Pages / Médias / ...") fait doublon et ajoute du bruit visuel
+   pour le client. */
+.modular-dashboard {
+  display: none;
+}
+
+/* ========================================
+   Step-nav header — affiner padding du logo Veridian
+   ========================================
+   Le slot step-nav__home est contraint à 18x18. On donne un peu d'air
+   autour de l'icône SVG pour qu'elle respire. */
+.step-nav__home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  svg {
+    flex-shrink: 0;
+  }
+}

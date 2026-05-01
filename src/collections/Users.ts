@@ -68,6 +68,9 @@ export const Users: CollectionConfig = {
     useAsTitle: 'email',
     description: 'Utilisateurs du CMS (vous, votre équipe, vos clients).',
     group: 'Administration',
+    // Caché aux non-super-admin (les clients n'ont pas à gérer les users)
+    hidden: ({ user }) =>
+      !((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
   },
   auth: {
     useAPIKey: true,

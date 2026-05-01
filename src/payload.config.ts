@@ -220,6 +220,9 @@ export default buildConfig({
       overrides: {
         admin: {
           group: 'Administration',
+          // Caché aux non-super-admin (gestion technique)
+          hidden: ({ user }) =>
+            !((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
         },
       },
     }),

@@ -10,6 +10,9 @@ export const Tenants: CollectionConfig = {
     useAsTitle: 'name',
     description: 'Un client Veridian (ex : Morel Volailles, Dupont BTP...). Chaque client a son propre espace isolé.',
     group: 'Administration',
+    // Caché aux non-super-admin
+    hidden: ({ user }) =>
+      !((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
   },
   access: {
     read: ({ req }) => {
