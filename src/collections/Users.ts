@@ -74,6 +74,14 @@ export const Users: CollectionConfig = {
   },
   auth: {
     useAPIKey: true,
+    // Cookie d'auth partagé entre cms.veridian.site et tous les sous-domaines
+    // (avse-monetique.veridian.site, etc.) pour permettre la Live Preview
+    // cross-subdomain depuis l'iframe du site client.
+    cookies: {
+      sameSite: 'None',
+      secure: true,
+      domain: process.env.AUTH_COOKIE_DOMAIN,
+    },
   },
   hooks: {
     afterChange: [

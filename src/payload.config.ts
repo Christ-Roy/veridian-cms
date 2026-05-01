@@ -37,6 +37,11 @@ const corsOrigins = (process.env.CORS_ORIGINS || '')
   .map((s) => s.trim())
   .filter(Boolean)
 
+const csrfOrigins = (process.env.CSRF_ORIGINS || process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+
 export default buildConfig({
   serverURL: SERVER_URL || 'http://localhost:3000',
 
@@ -135,6 +140,7 @@ export default buildConfig({
   }),
   sharp,
   cors: corsOrigins.length > 0 ? corsOrigins : '*',
+  csrf: csrfOrigins,
   email: process.env.SMTP_HOST
     ? nodemailerAdapter({
         defaultFromAddress: process.env.SMTP_FROM || 'cms@veridian.site',
