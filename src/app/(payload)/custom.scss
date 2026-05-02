@@ -251,24 +251,62 @@ body:has(.collection-edit--is-live-previewing) {
     }
   }
 
+  /* `.template-default` est en `display: grid` avec `grid-template-columns: 275px 1fr`.
+     Comme la grille n'écoute pas la nouvelle largeur de la sidebar (50px),
+     on force la 1ère colonne à 50px pour récupérer 225px au profit du contenu. */
+  .template-default,
   .template-default--nav-open {
-    padding-left: 60px !important;
+    grid-template-columns: 50px 1fr !important;
   }
 
-  /* Preview window + iframe → 100% du conteneur disponible */
-  .live-preview-window,
-  .live-preview-window__wrapper {
+  /* La structure DOM Payload en mode preview est :
+     FORM.collection-edit__form
+       └─ DIV.collection-edit__main-wrapper (flex)
+            ├─ DIV.collection-edit__main (form fields, ~560px souhaités)
+            └─ DIV.live-preview-window (iframe, prend le reste)
+
+     Donc on donne au FORM toute la largeur, on contraint le contenu
+     form (collection-edit__main) à 560px, et on laisse la preview
+     prendre tout le reste avec flex: 1. */
+  .collection-edit__form {
     width: 100% !important;
     max-width: 100% !important;
+  }
+
+  .collection-edit__main-wrapper {
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 1.5rem;
+  }
+
+  .collection-edit__main {
+    flex: 0 0 560px !important;
+    max-width: 560px !important;
+    width: 560px !important;
+  }
+
+  /* Preview window prend tout l'espace restant */
+  .live-preview-window {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0 !important;
+  }
+
+  .live-preview-window__wrapper,
+  .live-preview-window__main {
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .iframe-loader__container {
+    width: 100% !important;
     flex: 1 1 100% !important;
   }
 
+  .iframe-loader__iframe,
   .live-preview-window iframe {
     width: 100% !important;
-  }
-
-  /* Form column un peu plus compacte pour donner plus d'air à la preview */
-  .collection-edit__form {
-    max-width: 580px;
   }
 }
