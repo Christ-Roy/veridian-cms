@@ -310,3 +310,72 @@ body:has(.collection-edit--is-live-previewing) {
     width: 100% !important;
   }
 }
+
+/* ========================================
+   Live Preview — bouton "Maximiser preview"
+   ========================================
+   Injecté via mutationObserver par <PreviewMaximize/> dans la toolbar Live
+   Preview Payload. Au clic toggle `body.preview-maximized` qui cache le
+   form admin pour donner 100% de la largeur à l'iframe (utile pour
+   valider le rendu desktop / desktop-xl). */
+.veridian-preview-maximize-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 0.5rem;
+  border: 1px solid rgba($veridian-dark, 0.18);
+  border-radius: 6px;
+  background: white;
+  color: $veridian-dark;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: $veridian-mint-light;
+    border-color: $veridian-dark;
+  }
+
+  &[aria-pressed='true'] {
+    background: $veridian-dark;
+    color: $veridian-mint-light;
+    border-color: $veridian-dark;
+  }
+
+  svg {
+    flex-shrink: 0;
+  }
+
+  /* Si maximisé : on inverse l'icône */
+  svg[data-maximized='true'] {
+    transform: scale(0.85);
+  }
+}
+
+/* Mode maximisé : on cache le form, l'iframe prend 100% de la largeur */
+body.preview-maximized {
+  .collection-edit__main {
+    display: none !important;
+  }
+
+  .doc-controls,
+  .doc-tabs,
+  .step-nav,
+  .doc-header__title,
+  .doc-header__description,
+  .step-nav,
+  .doc-controls__row,
+  .doc-controls__sidebar-toggler {
+    display: none !important;
+  }
+
+  .collection-edit__main-wrapper {
+    gap: 0 !important;
+  }
+
+  .live-preview-window {
+    flex: 1 1 100% !important;
+  }
+}
+

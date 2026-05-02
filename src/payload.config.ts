@@ -70,7 +70,10 @@ export default buildConfig({
       },
       beforeLogin: ['/components/BeforeLogin/index.tsx#default'],
       beforeDashboard: ['/components/BeforeDashboard/index.tsx#default'],
-      afterNavLinks: ['/components/ProfileCard/index.tsx#default'],
+      afterNavLinks: [
+        '/components/ProfileCard/index.tsx#default',
+        '/components/PreviewMaximize/index.tsx#default',
+      ],
     },
     meta: {
       titleSuffix: ' — Veridian CMS',
