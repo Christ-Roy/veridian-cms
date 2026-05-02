@@ -114,11 +114,15 @@ export default buildConfig({
       },
       collections: ['pages', 'header', 'footer'],
       breakpoints: [
-        // Largeurs adaptées à l'iframe preview (pas le viewport réel)
-        // Pour voir le site en taille réelle desktop, utiliser le bouton "ouvrir dans un nouvel onglet"
+        // Le breakpoint "Responsive" (par défaut Payload) dimensionne à la
+        // largeur de l'iframe (~1244px). Les autres permettent de simuler
+        // les viewports clients réels. Pour voir le site en pleine page,
+        // utiliser le bouton "ouvrir dans un nouvel onglet".
         { label: 'Mobile (iPhone)', name: 'mobile', width: 375, height: 812 },
         { label: 'Tablette (iPad)', name: 'tablet', width: 768, height: 1024 },
-        { label: 'Aperçu compact', name: 'compact', width: 1024, height: 768 },
+        { label: 'Laptop (1366)', name: 'laptop', width: 1366, height: 768 },
+        { label: 'Desktop (1440)', name: 'desktop', width: 1440, height: 900 },
+        { label: 'Desktop large (1920)', name: 'desktop-xl', width: 1920, height: 1080 },
       ],
     },
   },
