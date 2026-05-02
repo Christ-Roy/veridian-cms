@@ -77,9 +77,16 @@ export const Users: CollectionConfig = {
     // Cookie d'auth partagé entre cms.veridian.site et tous les sous-domaines
     // (avse-monetique.veridian.site, etc.) pour permettre la Live Preview
     // cross-subdomain depuis l'iframe du site client.
+    //
+    // Variables d'env :
+    //  - AUTH_COOKIE_DOMAIN : .veridian.site en prod, vide en dev local
+    //  - AUTH_COOKIE_SAMESITE : 'None' en prod (cross-subdomain),
+    //                           'Lax' en dev local sur HTTP (None+Secure
+    //                           imposerait HTTPS qu'on n'a pas en localhost)
+    //  - AUTH_COOKIE_SECURE : 'true' en prod (HTTPS), 'false' en dev HTTP
     cookies: {
-      sameSite: 'None',
-      secure: true,
+      sameSite: (process.env.AUTH_COOKIE_SAMESITE as 'None' | 'Lax' | 'Strict') || 'None',
+      secure: process.env.AUTH_COOKIE_SECURE !== 'false',
       domain: process.env.AUTH_COOKIE_DOMAIN,
     },
   },
