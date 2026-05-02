@@ -296,6 +296,15 @@ export interface Page {
                   id?: string | null;
                 }[]
               | null;
+            /**
+             * Petits points avec ✓ affichés sous les boutons (ex : "7j/7 de 9h à 22h").
+             */
+            bullets?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'hero';
@@ -406,6 +415,50 @@ export interface Page {
             blockType: 'splitImageText';
           }
         | {
+            /**
+             * Photo principale de la carte (portrait, format vertical recommandé).
+             */
+            image?: (number | null) | Media;
+            /**
+             * URL publique si pas d'upload. Sera remplacé dès qu'une image est uploadée.
+             */
+            imageFallbackUrl?: string | null;
+            imageAlt?: string | null;
+            quote?: string | null;
+            authorName?: string | null;
+            authorRole?: string | null;
+            stats?:
+              | {
+                  label: string;
+                  sublabel?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            eyebrow?: string | null;
+            title?: string | null;
+            paragraphs?:
+              | {
+                  text: string;
+                  id?: string | null;
+                }[]
+              | null;
+            ctas?:
+              | {
+                  label: string;
+                  url: string;
+                  variant?: ('primary' | 'secondary') | null;
+                  id?: string | null;
+                }[]
+              | null;
+            /**
+             * Petit texte italique en bas (ex : "Pas de hotline anonyme...").
+             */
+            footnote?: string | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'quoteCard';
+          }
+        | {
             title?: string | null;
             subtitle?: string | null;
             images?:
@@ -478,8 +531,22 @@ export interface Page {
         | {
             title: string;
             description?: string | null;
-            ctaLabel: string;
-            ctaUrl: string;
+            /**
+             * Champ historique. Pour ajouter plusieurs boutons, utiliser le tableau "Boutons" ci-dessous.
+             */
+            ctaLabel?: string | null;
+            ctaUrl?: string | null;
+            /**
+             * Si rempli, remplace le bouton legacy ci-dessus. Jusqu'à 2 boutons.
+             */
+            ctas?:
+              | {
+                  label: string;
+                  url: string;
+                  variant?: ('primary' | 'secondary') | null;
+                  id?: string | null;
+                }[]
+              | null;
             id?: string | null;
             blockName?: string | null;
             blockType: 'cta';
@@ -1196,6 +1263,12 @@ export interface PagesSelect<T extends boolean = true> {
                     variant?: T;
                     id?: T;
                   };
+              bullets?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };
@@ -1284,6 +1357,42 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        quoteCard?:
+          | T
+          | {
+              image?: T;
+              imageFallbackUrl?: T;
+              imageAlt?: T;
+              quote?: T;
+              authorName?: T;
+              authorRole?: T;
+              stats?:
+                | T
+                | {
+                    label?: T;
+                    sublabel?: T;
+                    id?: T;
+                  };
+              eyebrow?: T;
+              title?: T;
+              paragraphs?:
+                | T
+                | {
+                    text?: T;
+                    id?: T;
+                  };
+              ctas?:
+                | T
+                | {
+                    label?: T;
+                    url?: T;
+                    variant?: T;
+                    id?: T;
+                  };
+              footnote?: T;
+              id?: T;
+              blockName?: T;
+            };
         gallery?:
           | T
           | {
@@ -1348,6 +1457,14 @@ export interface PagesSelect<T extends boolean = true> {
               description?: T;
               ctaLabel?: T;
               ctaUrl?: T;
+              ctas?:
+                | T
+                | {
+                    label?: T;
+                    url?: T;
+                    variant?: T;
+                    id?: T;
+                  };
               id?: T;
               blockName?: T;
             };

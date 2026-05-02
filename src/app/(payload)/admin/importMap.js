@@ -33,6 +33,7 @@ import { Icon as Icon_4be8daa5d1a22ea737aa7c7992a54fbc } from '../../../componen
 import { Logo as Logo_548f49afcf2dce5eb05ad50c3f8dcc95 } from '../../../components/graphics/Logo/index.tsx'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { default as default_62e153c28ca663731f93059446870b2b } from '../../../components/ProfileCard/index.tsx'
+import { default as default_7fffcbce114c72dd4449008136392784 } from '../../../components/PreviewMaximize/index.tsx'
 import { default as default_b6bbc7f2d172fed7691bb8a81fb7a3c2 } from '../../../components/BeforeDashboard/index.tsx'
 import { default as default_ad65897babd4385371b27dd1d2bde09b } from '../../../components/BeforeLogin/index.tsx'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
@@ -75,6 +76,7 @@ export const importMap = {
   "/components/graphics/Logo/index.tsx#Logo": Logo_548f49afcf2dce5eb05ad50c3f8dcc95,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
   "/components/ProfileCard/index.tsx#default": default_62e153c28ca663731f93059446870b2b,
+  "/components/PreviewMaximize/index.tsx#default": default_7fffcbce114c72dd4449008136392784,
   "/components/BeforeDashboard/index.tsx#default": default_b6bbc7f2d172fed7691bb8a81fb7a3c2,
   "/components/BeforeLogin/index.tsx#default": default_ad65897babd4385371b27dd1d2bde09b,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
