@@ -318,7 +318,8 @@ body:has(.collection-edit--is-live-previewing) {
    Preview Payload. Au clic toggle `body.preview-maximized` qui cache le
    form admin pour donner 100% de la largeur à l'iframe (utile pour
    valider le rendu desktop / desktop-xl). */
-.veridian-preview-maximize-btn {
+.veridian-preview-maximize-btn,
+.veridian-preview-autofit-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -346,12 +347,12 @@ body:has(.collection-edit--is-live-previewing) {
   svg {
     flex-shrink: 0;
   }
-
-  /* Si maximisé : on inverse l'icône */
-  svg[data-maximized='true'] {
-    transform: scale(0.85);
-  }
 }
+
+/* Auto-fit zoom : <PreviewMaximize/> applique le scale via inline style sur
+   l'iframe (priorité max, bat le scale(1) inline de Payload). Pour que le
+   layout reste cohérent visuellement (pas de bandeau vide en bas après
+   shrink), il pose aussi un height ajusté sur les wrappers. */
 
 /* Mode maximisé : on cache le form, l'iframe prend 100% de la largeur */
 body.preview-maximized {
