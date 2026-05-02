@@ -29,5 +29,16 @@ export const HeroBlock: Block = {
         },
       ],
     },
+    {
+      name: 'bullets',
+      type: 'array',
+      label: 'Points clés (sous les boutons)',
+      labels: { singular: 'Point', plural: 'Points' },
+      maxRows: 4,
+      admin: {
+        description: 'Petits points avec ✓ affichés sous les boutons (ex : "7j/7 de 9h à 22h").',
+      },
+      fields: [{ name: 'text', type: 'text', required: true, label: 'Texte' }],
+    },
   ],
 }

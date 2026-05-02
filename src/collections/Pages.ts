@@ -11,6 +11,7 @@ import {
   Cards4WithIconsBlock,
   LogoWallBlock,
   SplitImageTextBlock,
+  QuoteCardBlock,
 } from '../blocks'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
@@ -64,6 +65,7 @@ export const Pages: CollectionConfig = {
         Cards2Block,
         Cards4WithIconsBlock,
         SplitImageTextBlock,
+        QuoteCardBlock,
         GalleryBlock,
         LogoWallBlock,
         TestimonialsBlock,
