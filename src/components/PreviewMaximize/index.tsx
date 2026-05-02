@@ -119,6 +119,159 @@ const PreviewMaximize: React.FC = () => {
         : 'Auto-zoom : désactivé (clic pour activer)'
     }
 
+    /* ----- Page selector ----- */
+    type PageRow = {
+      id: number | string
+      title: string
+      slug: string
+      collection: 'pages' | 'products'
+    }
+
+    let cachedPages: PageRow[] = []
+    let lastFetchTenantId: number | string | null | undefined = undefined
+    let pageSelectorInjecting = false
+
+    const fetchPages = async (
+      tenantId: number | string | null,
+    ): Promise<PageRow[]> => {
+      const params = new URLSearchParams({ limit: '100', depth: '0' })
+      if (tenantId) params.set('where[tenant][equals]', String(tenantId))
+      try {
+        const [pages, products] = await Promise.all([
+          fetch(`/api/pages?${params}`, { credentials: 'include' })
+            .then((r) => r.json())
+            .then((d) => (d?.docs ?? []) as Array<{ id: number; title: string; slug: string }>),
+          fetch(`/api/products?${params}`, { credentials: 'include' })
+            .then((r) => r.json())
+            .then(
+              (d) =>
+                (d?.docs ?? []) as Array<{ id: number; title?: string; name?: string; slug: string }>,
+            )
+            .catch(() => []),
+        ])
+        const rows: PageRow[] = []
+        pages.forEach((p) =>
+          rows.push({
+            id: p.id,
+            title: p.title || p.slug || 'Sans titre',
+            slug: p.slug,
+            collection: 'pages',
+          }),
+        )
+        products.forEach((p) =>
+          rows.push({
+            id: p.id,
+            title: (p.title || p.name || p.slug || 'Sans titre') as string,
+            slug: p.slug,
+            collection: 'products',
+          }),
+        )
+        return rows
+      } catch {
+        return []
+      }
+    }
+
+    const getCurrentDocId = (): { collection: string; id: string } | null => {
+      const m = window.location.pathname.match(/\/collections\/(\w+)\/([\w-]+)/)
+      if (!m) return null
+      return { collection: m[1], id: m[2] }
+    }
+
+    const buildSelector = (
+      pages: PageRow[],
+      currentId: string | null,
+      currentCollection: string | null,
+    ): HTMLSelectElement => {
+      const select = document.createElement('select')
+      select.id = 'veridian-page-selector'
+      select.className = 'veridian-page-selector'
+      select.title = 'Naviguer vers une autre page du site'
+
+      const groupPages = pages.filter((p) => p.collection === 'pages')
+      const groupProducts = pages.filter((p) => p.collection === 'products')
+
+      const addGroup = (label: string, items: PageRow[]) => {
+        if (!items.length) return
+        const og = document.createElement('optgroup')
+        og.label = label
+        items.forEach((p) => {
+          const opt = document.createElement('option')
+          opt.value = `${p.collection}:${p.id}`
+          opt.textContent = p.title
+          if (
+            String(p.id) === String(currentId) &&
+            p.collection === currentCollection
+          ) {
+            opt.selected = true
+          }
+          og.appendChild(opt)
+        })
+        select.appendChild(og)
+      }
+      addGroup('Pages', groupPages)
+      addGroup('Catalogue', groupProducts)
+
+      select.addEventListener('change', () => {
+        const [coll, id] = select.value.split(':')
+        if (coll && id) {
+          window.location.href = `/admin/collections/${coll}/${id}`
+        }
+      })
+      return select
+    }
+
+    const ensurePageSelector = async (toolbar: Element) => {
+      if (document.getElementById('veridian-page-selector')) return
+      if (pageSelectorInjecting) return
+      pageSelectorInjecting = true
+      const current = getCurrentDocId()
+      if (!current) {
+        pageSelectorInjecting = false
+        return
+      }
+
+      // 1. Fetch tenant courant si on ne l'a pas
+      let tenantId: number | string | null = null
+      try {
+        const doc = await fetch(`/api/${current.collection}/${current.id}?depth=0`, {
+          credentials: 'include',
+        }).then((r) => r.json())
+        const t = (doc as { tenant?: number | { id: number } }).tenant
+        tenantId = typeof t === 'object' && t ? t.id : (t ?? null)
+      } catch {
+        /* ignore */
+      }
+
+      // 2. Cache si même tenant que dernier fetch
+      if (lastFetchTenantId !== tenantId) {
+        cachedPages = await fetchPages(tenantId)
+        lastFetchTenantId = tenantId
+      }
+      if (!cachedPages.length) {
+        pageSelectorInjecting = false
+        return
+      }
+
+      // Re-vérifie qu'il n'a pas été injecté pendant l'await (race)
+      if (document.getElementById('veridian-page-selector')) {
+        pageSelectorInjecting = false
+        return
+      }
+
+      // 3. Insère le select à côté du breakpoint
+      const breakpointEl = toolbar.querySelector(
+        '.live-preview-toolbar-controls__breakpoint',
+      )
+      const select = buildSelector(cachedPages, current.id, current.collection)
+      if (breakpointEl) {
+        breakpointEl.insertAdjacentElement('beforebegin', select)
+      } else {
+        toolbar.insertBefore(select, toolbar.firstChild)
+      }
+      pageSelectorInjecting = false
+    }
+
     /* ----- Inject buttons ----- */
     const ensureButtons = () => {
       const toolbar = document.querySelector('.live-preview-toolbar-controls')
@@ -151,7 +304,10 @@ const PreviewMaximize: React.FC = () => {
         }
       }
 
-      // 2. Bouton "Auto-fit zoom"
+      // 2. Sélecteur de page (navigation rapide entre pages du tenant)
+      ensurePageSelector(toolbar)
+
+      // 3. Bouton "Auto-fit zoom"
       if (!document.getElementById('veridian-preview-autofit')) {
         const btn = document.createElement('button')
         btn.id = 'veridian-preview-autofit'
@@ -189,6 +345,7 @@ const PreviewMaximize: React.FC = () => {
         document.body.classList.remove('preview-maximized')
         document.getElementById(BTN_ID)?.remove()
         document.getElementById('veridian-preview-autofit')?.remove()
+        document.getElementById('veridian-page-selector')?.remove()
       }
     }
 
@@ -255,6 +412,7 @@ const PreviewMaximize: React.FC = () => {
       document.body.classList.remove('preview-maximized')
       document.getElementById(BTN_ID)?.remove()
       document.getElementById('veridian-preview-autofit')?.remove()
+      document.getElementById('veridian-page-selector')?.remove()
     }
   }, [])
 

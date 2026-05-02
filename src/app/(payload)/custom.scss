@@ -318,6 +318,43 @@ body:has(.collection-edit--is-live-previewing) {
    Preview Payload. Au clic toggle `body.preview-maximized` qui cache le
    form admin pour donner 100% de la largeur à l'iframe (utile pour
    valider le rendu desktop / desktop-xl). */
+/* Sélecteur de page intégré dans la toolbar Live Preview pour naviguer
+   entre pages/produits du tenant sans sortir du mode preview. */
+.veridian-page-selector {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin-right: 0.5rem;
+  padding: 0 0.6rem;
+  border: 1px solid rgba($veridian-dark, 0.18);
+  border-radius: 6px;
+  background: white;
+  color: $veridian-dark;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  max-width: 200px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &:hover {
+    background: $veridian-mint-light;
+    border-color: $veridian-dark;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: $veridian-dark;
+    box-shadow: 0 0 0 2px rgba($veridian-dark, 0.15);
+  }
+
+  optgroup {
+    font-weight: 600;
+    color: $veridian-dark;
+  }
+}
+
 .veridian-preview-maximize-btn,
 .veridian-preview-autofit-btn {
   display: inline-flex;
