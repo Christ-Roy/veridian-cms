@@ -32,11 +32,13 @@ import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 }
 import { Icon as Icon_4be8daa5d1a22ea737aa7c7992a54fbc } from '../../../components/graphics/Icon/index.tsx'
 import { Logo as Logo_548f49afcf2dce5eb05ad50c3f8dcc95 } from '../../../components/graphics/Logo/index.tsx'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
-import { default as default_62e153c28ca663731f93059446870b2b } from '../../../components/ProfileCard/index.tsx'
 import { default as default_7fffcbce114c72dd4449008136392784 } from '../../../components/PreviewMaximize/index.tsx'
+import { default as default_d3367d323ea5e84a931346d12c934529 } from '../../../components/FormPreviewSplitter/index.tsx'
+import { default as default_08c3010649282202a1e4a0a170372153 } from '../../../components/SidebarIcons/index.tsx'
 import { default as default_b6bbc7f2d172fed7691bb8a81fb7a3c2 } from '../../../components/BeforeDashboard/index.tsx'
 import { default as default_ad65897babd4385371b27dd1d2bde09b } from '../../../components/BeforeLogin/index.tsx'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
+import { default as default_fdf237b44be7abad01406b5ce0871b84 } from '../../../components/SidebarHeader/index.tsx'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } from '@payloadcms/next/rsc'
 
@@ -75,11 +77,13 @@ export const importMap = {
   "/components/graphics/Icon/index.tsx#Icon": Icon_4be8daa5d1a22ea737aa7c7992a54fbc,
   "/components/graphics/Logo/index.tsx#Logo": Logo_548f49afcf2dce5eb05ad50c3f8dcc95,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
-  "/components/ProfileCard/index.tsx#default": default_62e153c28ca663731f93059446870b2b,
   "/components/PreviewMaximize/index.tsx#default": default_7fffcbce114c72dd4449008136392784,
+  "/components/FormPreviewSplitter/index.tsx#default": default_d3367d323ea5e84a931346d12c934529,
+  "/components/SidebarIcons/index.tsx#default": default_08c3010649282202a1e4a0a170372153,
   "/components/BeforeDashboard/index.tsx#default": default_b6bbc7f2d172fed7691bb8a81fb7a3c2,
   "/components/BeforeLogin/index.tsx#default": default_ad65897babd4385371b27dd1d2bde09b,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
+  "/components/SidebarHeader/index.tsx#default": default_fdf237b44be7abad01406b5ce0871b84,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/next/rsc#CollectionCards": CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1
 }

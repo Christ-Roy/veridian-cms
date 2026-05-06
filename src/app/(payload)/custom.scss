@@ -1,31 +1,179 @@
 /**
  * Veridian CMS — custom.scss
  *
- * Personnalisation de l'admin Payload :
- *  - Sidebar : gradient vert menthe (charte Veridian #1a3d2f → #86efac très dilué)
- *  - Carte profil utilisateur en bas (pattern moderne SaaS)
- *  - Active link mis en avant en menthe
+ * Système de design type shadcn / ui (white mode).
+ * TOUS les styles utilisent les tokens CSS définis dans :root ci-dessous.
+ * Pour rebrander : modifier les tokens, pas les sélecteurs.
  */
 
-// Couleurs charte Veridian
-$veridian-dark: #1a3d2f;
-$veridian-mint: #86efac;
-$veridian-mint-light: #f0fdf4;
-$veridian-mint-soft: #dcfce7;
-$veridian-mint-mid: #bbf7d0;
+/* ========================================
+   DESIGN TOKENS — shadcn-like (HSL pour faciliter le tweaking)
+   ========================================
+   Pattern : couleur de base + foreground (texte qui va dessus).
+   Modifier ces tokens reskin tout l'admin sans toucher au reste. */
+:root {
+  /* Surfaces */
+  --background:        0 0% 100%;       // fond global (= white)
+  --foreground:        240 10% 4%;      // texte principal (zinc-950)
+
+  --card:              0 0% 100%;       // surfaces cards/inputs
+  --card-foreground:   240 10% 4%;
+
+  --popover:           0 0% 100%;
+  --popover-foreground:240 10% 4%;
+
+  /* Couleurs sémantiques */
+  --primary:           150 41% 14%;     // vert Veridian foncé (#1a3d2f)
+  --primary-foreground:138 76% 73%;     // menthe (#86efac)
+
+  --secondary:         240 5% 96%;      // zinc-100 — fonds discrets, hovers
+  --secondary-foreground: 240 6% 10%;
+
+  --muted:             240 5% 96%;      // alias secondary, sémantique différente
+  --muted-foreground:  240 4% 46%;      // zinc-500 (texte secondaire)
+
+  --accent:            141 79% 85%;     // menthe-soft — états actifs sidebar
+  --accent-foreground: 150 41% 14%;     // = primary
+
+  --destructive:       0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Lignes & focus */
+  --border:            240 6% 90%;      // zinc-200
+  --input:             240 6% 90%;
+  --ring:              150 41% 14%;     // = primary (focus rings)
+
+  /* Géométrie */
+  --radius:            8px;             // base — cards, dropdowns
+  --radius-sm:         6px;             // boutons, badges
+  --radius-lg:         10px;            // cards dashboard
+
+  /* Typo */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Élévation (shadows shadcn-like, très subtiles) */
+  --shadow-xs: 0 1px 2px 0 hsl(var(--foreground) / 0.04);
+  --shadow-sm: 0 1px 3px 0 hsl(var(--foreground) / 0.06), 0 1px 2px -1px hsl(var(--foreground) / 0.04);
+  --shadow-md: 0 4px 6px -1px hsl(var(--foreground) / 0.06), 0 2px 4px -2px hsl(var(--foreground) / 0.04);
+  --shadow-lg: 0 10px 15px -3px hsl(var(--foreground) / 0.06), 0 4px 6px -4px hsl(var(--foreground) / 0.04);
+
+  /* Largeur form en mode preview — par défaut 480px, override via JS */
+  --form-width: 480px;
+}
+
+// Helpers SCSS — bridges entre tokens HSL et SCSS pour darken/lighten/rgba.
+// Pour tweaker, modifier les tokens :root au-dessus, pas ces variables.
+$primary: hsl(150, 41%, 14%);
+$primary-foreground: hsl(138, 76%, 73%);
+$primary-soft: hsl(141, 79%, 85%);
+$primary-softer: hsl(141, 79%, 95%);
+$background: hsl(0, 0%, 100%);
+$foreground: hsl(240, 10%, 4%);
+$muted: hsl(240, 5%, 96%);
+$muted-foreground: hsl(240, 4%, 46%);
+$border: hsl(240, 6%, 90%);
+$secondary: hsl(240, 5%, 96%);
+
+// Anciens alias — gardés temporairement pour compat tant qu'on n'a pas
+// migré 100% du SCSS. À supprimer une fois la migration terminée.
+$veridian-dark: $primary;
+$veridian-mint: $primary-foreground;
+$veridian-mint-light: $primary-softer;
+$veridian-mint-soft: $primary-soft;
+$veridian-mint-mid: hsl(141, 79%, 80%);
+$neutral-0:   $background;
+$neutral-50:  hsl(0, 0%, 98%);
+$neutral-100: $muted;
+$neutral-200: $border;
+$neutral-300: hsl(240, 5%, 84%);
+$neutral-500: $muted-foreground;
+$neutral-700: hsl(240, 5%, 26%);
+$neutral-900: $foreground;
 
 /* ========================================
-   SIDEBAR — gradient menthe + finitions
+   Variables Payload — override globalement vers la palette neutre
+   ========================================
+   Payload expose ses tokens via CSS custom properties. Les redéfinir
+   au niveau :root applique le style à TOUTES les surfaces qu'on n'a pas
+   explicitement stylées (forms, tables, modales, drawers, dropdowns).
+   Référence : `node_modules/@payloadcms/ui/scss/_global-overrides.scss` */
+:root {
+  // Surfaces
+  --theme-bg: #{$neutral-50};                  // fond du contenu principal
+  --theme-elevation-0: #{$neutral-0};           // cards, drawers, popovers
+  --theme-elevation-50: #{$neutral-50};
+  --theme-elevation-100: #{$neutral-100};
+  --theme-elevation-150: #{$neutral-100};
+  --theme-elevation-200: #{$neutral-200};
+  --theme-elevation-250: #{$neutral-200};
+  --theme-elevation-300: #{$neutral-300};
+
+  // Texte (Payload utilise --theme-text et dérivés pour les inputs/labels)
+  --theme-text: #{$neutral-900};
+
+  // Accent / focus — passe au vert Veridian foncé pour les CTA et focus rings
+  --theme-success-500: #{$veridian-dark};
+  --theme-success-600: #{$veridian-dark};
+
+  // Bordures inputs / cards
+  --style-radius-s: 4px;
+  --style-radius-m: 6px;
+  --style-radius-l: 8px;
+}
+
+/* ========================================
+   Inputs / textareas / selects — focus en vert Veridian
+   ========================================
+   Donne le côté "vivant" Brevo/Supabase : les inputs sont gris au repos,
+   se teintent en vert au focus pour signaler la zone active. */
+input[type='text']:focus,
+input[type='email']:focus,
+input[type='password']:focus,
+input[type='url']:focus,
+input[type='number']:focus,
+input[type='search']:focus,
+input[type='tel']:focus,
+input[type='date']:focus,
+input[type='datetime-local']:focus,
+textarea:focus,
+select:focus,
+.field-type input:focus,
+.field-type textarea:focus,
+.field-type select:focus,
+.rs__control:focus,
+.rs__control:focus-within,
+.rs__control--is-focused {
+  border-color: $veridian-dark !important;
+  box-shadow: 0 0 0 3px rgba($veridian-dark, 0.10) !important;
+  outline: none !important;
+}
+
+/* Liens hypertextes dans le contenu admin (ex : "Voir le site", aide) */
+a:not(.nav__link):not(.veridian-profile):not(.btn) {
+  color: $veridian-dark;
+
+  &:hover {
+    color: darken($veridian-dark, 5%);
+  }
+}
+
+/* Boutons toolbar Live Preview (Mobile, Tablette, Desktop, Responsive…) :
+   l'état actif passe en vert Veridian (au lieu du gris foncé natif). */
+.preview-frame-sizes__size--active,
+button[aria-pressed='true'][class*='preview-frame'] {
+  background: $veridian-dark !important;
+  color: $neutral-0 !important;
+  border-color: $veridian-dark !important;
+}
+
+/* ========================================
+   SIDEBAR — white mode (Brevo / Supabase style)
    ======================================== */
 .nav {
-  background: linear-gradient(
-    175deg,
-    $veridian-mint-light 0%,
-    $veridian-mint-soft 55%,
-    $veridian-mint-mid 100%
-  ) !important;
-  border-right: 1px solid rgba($veridian-dark, 0.08);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.4);
+  background: $neutral-0 !important;
+  border-right: 1px solid $neutral-200;
+  box-shadow: none;
 
   &__scroll {
     display: flex;
@@ -42,123 +190,223 @@ $veridian-mint-mid: #bbf7d0;
 
   /* Liens de navigation (Pages, Médias, Tenants, etc.) */
   &__link {
-    color: $veridian-dark !important;
+    color: $neutral-700 !important;
     font-weight: 500;
-    border-radius: 8px;
-    margin: 2px 10px;
-    padding: 9px 12px;
-    transition: background 0.15s ease, color 0.15s ease;
+    font-size: 13px;
+    border-radius: 6px;
+    margin: 1px 8px;
+    padding: 7px 10px;
+    transition: background 0.12s ease, color 0.12s ease;
 
-    &:hover {
-      background: rgba(255, 255, 255, 0.55);
-      color: $veridian-dark !important;
+    /* Quand notre composant SidebarIcons a injecté une icône, on bascule
+       en flex pour aligner icône + texte. Sinon on touche pas au layout natif. */
+    &:has(.nav__link-icon) {
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
-    /* Page active : fond menthe foncé + texte clair */
-    &-indicator + &-label,
+    &:hover {
+      background: $veridian-mint-light;
+      color: $veridian-dark !important;
+
+      .nav__link-icon {
+        color: $veridian-dark;
+      }
+    }
+
     &-label {
-      letter-spacing: -0.01em;
+      letter-spacing: -0.005em;
+    }
+
+    &-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      color: hsl(var(--muted-foreground));
+      transition: color 0.12s ease;
+
+      svg {
+        width: 18px;
+        height: 18px;
+      }
     }
   }
 
-  /* Page courante (div.nav__link sans Link, signalé par link-indicator) */
+  /* Page courante : fond menthe très clair + texte vert foncé + barre verticale menthe à gauche */
   div.nav__link:has(.nav__link-indicator) {
-    background: $veridian-dark !important;
-    color: white !important;
+    background: $veridian-mint-soft !important;
+    color: $veridian-dark !important;
+    position: relative;
 
     .nav__link-label {
-      color: white !important;
+      color: $veridian-dark !important;
+      font-weight: 600;
+    }
+
+    .nav__link-icon {
+      color: $veridian-dark;
+    }
+
+    /* Barre verticale menthe foncée à gauche (pattern Supabase/Linear) */
+    &::before {
+      content: '';
+      position: absolute;
+      left: -8px;
+      top: 6px;
+      bottom: 6px;
+      width: 3px;
+      border-radius: 2px;
+      background: $veridian-dark;
     }
 
     .nav__link-indicator {
-      background: $veridian-mint !important;
+      display: none; // remplacé par ::before
     }
   }
 
   /* Labels de groupe (Administration, Formulaires, etc.) */
   .nav-group__toggle,
   [class*="nav-group__toggle"] {
-    color: rgba($veridian-dark, 0.55) !important;
+    color: $neutral-500 !important;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 10.5px;
+    font-weight: 600;
   }
 
   /* ========================================
-     Bandeau bas — carte profil utilisateur
+     Footer sidebar — controls natifs Payload (logout)
+     fusionnés avec la carte profil ci-dessous
      ======================================== */
   &__controls {
-    margin-top: auto;
-    padding: 14px 12px 16px;
-    background: rgba(255, 255, 255, 0.55);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid rgba($veridian-dark, 0.08);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-
-    button,
-    a {
-      color: $veridian-dark;
-
-      &:hover {
-        color: $veridian-dark;
-        opacity: 0.7;
-      }
-    }
+    display: none;
   }
 }
 
 /* ========================================
-   Carte profil custom (composant afterNavLinks)
-   ======================================== */
+   Sidebar Header (slot beforeNavLinks)
+   ========================================
+   En haut de la sidebar : eyebrow "Édition site web" + nom du tenant
+   + carte profil cliquable. Pattern shadcn — hover subtil, radius doux.
+*/
+.veridian-sidebar-header {
+  padding: 12px 12px 14px;
+  border-bottom: 1px solid hsl(var(--border));
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  &__eyebrow {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 4px;
+  }
+
+  &__label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: hsl(var(--muted-foreground));
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  &__tenant {
+    font-size: 13px;
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.01em;
+  }
+}
+
+/* ========================================
+   Carte profil — utilisée dans SidebarHeader
+   Style shadcn user button : avatar + 2 lignes texte + chevron, hover subtil
+*/
 .veridian-profile {
-  margin: 14px 10px 4px;
-  padding: 12px;
-  background: white;
-  border: 1px solid rgba($veridian-dark, 0.08);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px rgba($veridian-dark, 0.04);
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: auto; // pousse la carte vers le bas du nav__wrap
+  padding: 8px;
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+  position: relative;
+  text-decoration: none;
+  color: inherit;
+
+  &:hover {
+    background: hsl(var(--muted));
+    border-color: hsl(var(--border));
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    width: 5px;
+    height: 5px;
+    border-right: 1.5px solid hsl(var(--muted-foreground));
+    border-top: 1.5px solid hsl(var(--muted-foreground));
+    transform: translateY(-50%) rotate(45deg);
+    pointer-events: none;
+  }
 
   &__avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    background: $veridian-dark;
-    color: $veridian-mint;
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 800;
-    font-size: 15px;
+    font-weight: 700;
+    font-size: 13px;
     flex-shrink: 0;
   }
 
   &__info {
     min-width: 0;
     flex: 1 1 auto;
+    padding-right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
 
   &__name {
     font-size: 13px;
     font-weight: 600;
-    color: $veridian-dark;
+    color: hsl(var(--foreground));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.2;
+    text-transform: capitalize;
+  }
+
+  &__email {
+    font-size: 11px;
+    color: hsl(var(--muted-foreground));
+    line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
+  /* Compat ancienne classe — pas utilisée mais évite un crash si quelqu'un
+     a un cache CSS sur veridian-profile__role */
   &__role {
-    font-size: 11px;
-    color: rgba($veridian-dark, 0.55);
-    margin-top: 1px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+    @extend .veridian-profile__email;
   }
 }
 
@@ -166,15 +414,23 @@ $veridian-mint-mid: #bbf7d0;
    AppHeader (top bar) — coordonner avec la sidebar
    ======================================== */
 .app-header {
-  background: white;
-  border-bottom: 1px solid rgba($veridian-dark, 0.08);
+  background: $neutral-0;
+  border-bottom: 1px solid $neutral-200;
+  box-shadow: none;
+}
+
+/* Avatar account natif Payload (top-right → /admin/account) caché.
+   On a déjà la carte profil dans la sidebar (ProfileCard) avec lien
+   vers /admin/account, ce doublon n'apporte rien. */
+.app-header__account {
+  display: none;
 }
 
 /* ========================================
-   BeforeLogin / Login page — affiner
+   BeforeLogin / Login page — neutre avec touche menthe en bas
    ======================================== */
 .template-minimal {
-  background: linear-gradient(180deg, $veridian-mint-light 0%, white 60%);
+  background: linear-gradient(180deg, $neutral-0 0%, $neutral-50 50%, $veridian-mint-light 100%);
 }
 
 /* ========================================
@@ -217,57 +473,86 @@ $veridian-mint-mid: #bbf7d0;
 }
 
 /* ========================================
-   Live Preview — maximiser la zone iframe
+   Live Preview — sidebar icon-only + form/preview resizable
    ========================================
-   En mode Aperçu en direct, l'iframe est par défaut limitée à ~960px
-   alors qu'on a beaucoup plus d'espace écran. On collapse la sidebar
-   en icon-only (50px) et on étend la preview au max du conteneur.
-   Scopé via :has() à `.collection-edit--is-live-previewing` pour ne
-   PAS casser l'admin hors preview. */
+   En mode Aperçu en direct on collapse la sidebar à 60px (icon-only mode).
+   La largeur du form est contrôlée par --form-width (var CSS posée par
+   la PageEditorLayout via localStorage) → drag handle entre form & preview.
+   Scopé via :has() à `.collection-edit--is-live-previewing`. */
 body:has(.collection-edit--is-live-previewing) {
-  /* Sidebar collapsed icon-only */
-  aside.nav.nav--nav-open {
-    width: 50px !important;
-    min-width: 50px !important;
+  /* Largeur du form (override via JS au drag — poignée resize).
+     Le JS pose --form-width sur document.documentElement. Si pas encore
+     posé, fallback à 480px ici via @property (pas de redéclaration qui
+     écraserait la var posée par JS). */
+
+  /* Sidebar icon-only (60px) — quel que soit l'état nav-open/nav-closed
+     pour rester cohérent avec la grille fixée à 60px ci-dessous. */
+  aside.nav {
+    width: 60px !important;
+    min-width: 60px !important;
     overflow: hidden;
 
-    .nav-group__label,
+    /* On masque tout le texte des labels (mais on garde les SVG icônes) */
     .nav__link-label,
-    .profile-card,
-    h2,
-    h3,
-    p,
-    span:not([class*='icon']) {
+    .nav-group__label,
+    .veridian-sidebar-header__eyebrow,
+    .veridian-profile__info {
       display: none !important;
     }
 
-    .nav__link {
+    /* Header sidebar : avatar centré, plus de bordure/padding */
+    .veridian-sidebar-header {
+      padding: 8px;
+      border-bottom: 1px solid hsl(var(--border));
+      margin-bottom: 4px;
+      align-items: center;
+    }
+
+    .veridian-profile {
+      padding: 4px;
+      border: none !important;
+      background: transparent !important;
       justify-content: center;
-      padding: 0.75rem 0;
+
+      &::after {
+        display: none; /* chevron masqué */
+      }
+
+      &:hover {
+        background: hsl(var(--muted)) !important;
+      }
+    }
+
+    /* Liens nav : reset margins/padding, icônes centrées */
+    .nav__link {
+      margin: 1px 6px !important;
+      padding: 9px 0 !important;
+      justify-content: center !important;
+      gap: 0 !important;
+
+      /* Tooltip via title natif au hover */
+    }
+
+    /* Garder les chevrons des groupes (mais masquer le label) */
+    .nav-group__toggle {
+      padding: 6px !important;
+      justify-content: center !important;
     }
 
     svg {
       flex-shrink: 0;
+      width: 18px !important;
+      height: 18px !important;
     }
   }
 
-  /* `.template-default` est en `display: grid` avec `grid-template-columns: 275px 1fr`.
-     Comme la grille n'écoute pas la nouvelle largeur de la sidebar (50px),
-     on force la 1ère colonne à 50px pour récupérer 225px au profit du contenu. */
+  /* Grid de la template-default — 1ère colonne = sidebar (60px) */
   .template-default,
   .template-default--nav-open {
-    grid-template-columns: 50px 1fr !important;
+    grid-template-columns: 60px 1fr !important;
   }
 
-  /* La structure DOM Payload en mode preview est :
-     FORM.collection-edit__form
-       └─ DIV.collection-edit__main-wrapper (flex)
-            ├─ DIV.collection-edit__main (form fields, ~560px souhaités)
-            └─ DIV.live-preview-window (iframe, prend le reste)
-
-     Donc on donne au FORM toute la largeur, on contraint le contenu
-     form (collection-edit__main) à 560px, et on laisse la preview
-     prendre tout le reste avec flex: 1. */
+  /* Form & preview prennent toute la largeur dispo */
   .collection-edit__form {
     width: 100% !important;
     max-width: 100% !important;
@@ -276,13 +561,18 @@ body:has(.collection-edit--is-live-previewing) {
   .collection-edit__main-wrapper {
     width: 100% !important;
     max-width: 100% !important;
-    gap: 1.5rem;
+    gap: 0 !important;
+    position: relative; /* pour le drag handle absolu */
   }
 
+  /* Form scope : largeur contrôlée par --form-width (localStorage via JS) */
   .collection-edit__main {
-    flex: 0 0 560px !important;
-    max-width: 560px !important;
-    width: 560px !important;
+    flex: 0 0 var(--form-width) !important;
+    max-width: var(--form-width) !important;
+    width: var(--form-width) !important;
+    min-width: 320px !important;
+    padding-right: 12px !important; /* air avant le splitter */
+    transition: none; /* drag doit être instantané */
   }
 
   /* Preview window prend tout l'espace restant */
@@ -291,6 +581,7 @@ body:has(.collection-edit--is-live-previewing) {
     width: auto !important;
     max-width: none !important;
     min-width: 0 !important;
+    margin-left: 8px !important; /* espace pour le splitter */
   }
 
   .live-preview-window__wrapper,
@@ -312,6 +603,75 @@ body:has(.collection-edit--is-live-previewing) {
 }
 
 /* ========================================
+   Splitter resizable form/preview
+   ========================================
+   Poignée verticale fine entre form et preview, drag horizontal pour
+   ajuster la largeur du form. Le composant FormPreviewSplitter (Client
+   Component) écoute mousedown et met à jour --form-width via inline style. */
+.veridian-splitter {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--form-width);
+  width: 14px;
+  margin-left: -7px;
+  z-index: 100;
+  cursor: col-resize;
+  background: transparent;
+  pointer-events: auto;
+  transition: background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Empêcher iframe / preview de capturer les événements quand on hover */
+  user-select: none;
+  touch-action: none;
+
+  &::before {
+    content: '';
+    width: 1px;
+    height: 100%;
+    background: hsl(var(--border));
+    transition: background 0.15s ease, width 0.15s ease;
+  }
+
+  &:hover::before,
+  &--dragging::before {
+    background: hsl(var(--primary));
+    width: 2px;
+  }
+
+  /* Petite poignée visible au hover */
+  &::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 4px;
+    height: 32px;
+    border-radius: 2px;
+    background: hsl(var(--border));
+    transition: background 0.15s ease;
+  }
+
+  &:hover::after,
+  &--dragging::after {
+    background: hsl(var(--primary));
+  }
+}
+
+/* Pendant le drag : empêcher la sélection de texte et changer le curseur partout */
+body.veridian-splitter-dragging {
+  cursor: col-resize !important;
+  user-select: none !important;
+
+  iframe {
+    pointer-events: none; /* iframe ne capture pas le drag */
+  }
+}
+
+/* ========================================
    Live Preview — bouton "Maximiser preview"
    ========================================
    Injecté via mutationObserver par <PreviewMaximize/> dans la toolbar Live
@@ -326,32 +686,32 @@ body:has(.collection-edit--is-live-previewing) {
   height: 32px;
   margin-right: 0.5rem;
   padding: 0 0.6rem;
-  border: 1px solid rgba($veridian-dark, 0.18);
+  border: 1px solid $neutral-200;
   border-radius: 6px;
-  background: white;
-  color: $veridian-dark;
+  background: $neutral-0;
+  color: $neutral-900;
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
   max-width: 200px;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   &:hover {
-    background: $veridian-mint-light;
-    border-color: $veridian-dark;
+    background: $neutral-50;
+    border-color: $neutral-300;
   }
 
   &:focus {
     outline: none;
     border-color: $veridian-dark;
-    box-shadow: 0 0 0 2px rgba($veridian-dark, 0.15);
+    box-shadow: 0 0 0 2px rgba($veridian-dark, 0.12);
   }
 
   optgroup {
     font-weight: 600;
-    color: $veridian-dark;
+    color: $neutral-900;
   }
 }
 
@@ -363,21 +723,22 @@ body:has(.collection-edit--is-live-previewing) {
   width: 32px;
   height: 32px;
   margin-right: 0.5rem;
-  border: 1px solid rgba($veridian-dark, 0.18);
+  border: 1px solid $neutral-200;
   border-radius: 6px;
-  background: white;
-  color: $veridian-dark;
+  background: $neutral-0;
+  color: $neutral-700;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.12s ease;
 
   &:hover {
-    background: $veridian-mint-light;
-    border-color: $veridian-dark;
+    background: $neutral-50;
+    color: $neutral-900;
+    border-color: $neutral-300;
   }
 
   &[aria-pressed='true'] {
     background: $veridian-dark;
-    color: $veridian-mint-light;
+    color: $neutral-0;
     border-color: $veridian-dark;
   }
 
@@ -414,6 +775,257 @@ body.preview-maximized {
 
   .live-preview-window {
     flex: 1 1 100% !important;
+  }
+}
+
+/* ========================================
+   Dashboard Veridian — vue d'ensemble du tenant
+   ======================================== */
+.veridian-dashboard {
+  margin-top: 2rem;        // air entre la top-bar et le contenu
+  margin-bottom: 2rem;
+
+  &__empty {
+    padding: 1.5rem;
+    background: $neutral-0;
+    border: 1px solid $neutral-200;
+    border-radius: 8px;
+    color: $neutral-500;
+    text-align: center;
+  }
+
+  &__header {
+    margin-bottom: 1.5rem;
+  }
+
+  &__title {
+    margin: 0;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: $neutral-900;
+    letter-spacing: -0.02em;
+  }
+
+  &__subtitle {
+    margin: 0.4rem 0 0;
+    color: $neutral-500;
+    font-size: 0.95rem;
+
+    strong {
+      color: $neutral-900;
+      font-weight: 600;
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-bottom: 2rem;
+  }
+
+  &__section {
+    background: $neutral-0;
+    border: 1px solid $neutral-200;
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+  }
+
+  &__section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  &__section-title {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: $neutral-900;
+  }
+
+  &__section-link {
+    font-size: 0.8rem;
+    color: $veridian-dark;
+    text-decoration: none;
+    font-weight: 500;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+/* ========================================
+   Stat card — shadcn-like (icône colorée + label + valeur + hint)
+   ======================================== */
+.veridian-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px 20px 16px;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    border-color: hsl(var(--ring) / 0.3);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+
+    .veridian-stat-card__icon {
+      background: hsl(var(--primary));
+      color: hsl(var(--primary-foreground));
+      border-color: hsl(var(--primary));
+    }
+  }
+
+  &--accent {
+    .veridian-stat-card__icon {
+      background: hsl(var(--accent));
+      color: hsl(var(--accent-foreground));
+      border-color: transparent;
+    }
+  }
+
+  &__top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  &__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    background: hsl(var(--muted));
+    color: hsl(var(--muted-foreground));
+    border: 1px solid hsl(var(--border));
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+
+    svg {
+      flex-shrink: 0;
+    }
+  }
+
+  &__label {
+    font-size: 13px;
+    color: hsl(var(--foreground));
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+
+  &__value {
+    font-size: 32px;
+    font-weight: 700;
+    color: hsl(var(--foreground));
+    letter-spacing: -0.025em;
+    line-height: 1;
+    margin: 4px 0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__hint {
+    font-size: 12px;
+    color: hsl(var(--muted-foreground));
+    font-weight: 500;
+  }
+}
+
+/* ========================================
+   Liste "Dernières pages modifiées"
+   ======================================== */
+.veridian-recent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &__item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 6px;
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.12s ease;
+    gap: 12px;
+
+    &:hover {
+      background: $neutral-50;
+    }
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  &__title {
+    font-size: 0.92rem;
+    font-weight: 500;
+    color: $neutral-900;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__slug {
+    font-size: 0.75rem;
+    color: $neutral-500;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin-top: 2px;
+  }
+
+  &__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  &__date {
+    font-size: 0.78rem;
+    color: $neutral-500;
+  }
+}
+
+/* Badge Publié / Brouillon */
+.veridian-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+
+  &--published {
+    background: $veridian-mint-soft;
+    color: $veridian-dark;
+  }
+
+  &--draft {
+    background: $neutral-100;
+    color: $neutral-500;
   }
 }
 

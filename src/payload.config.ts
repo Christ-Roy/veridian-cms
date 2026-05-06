@@ -70,9 +70,11 @@ export default buildConfig({
       },
       beforeLogin: ['/components/BeforeLogin/index.tsx#default'],
       beforeDashboard: ['/components/BeforeDashboard/index.tsx#default'],
+      beforeNavLinks: ['/components/SidebarHeader/index.tsx#default'],
       afterNavLinks: [
-        '/components/ProfileCard/index.tsx#default',
         '/components/PreviewMaximize/index.tsx#default',
+        '/components/FormPreviewSplitter/index.tsx#default',
+        '/components/SidebarIcons/index.tsx#default',
       ],
     },
     meta: {
