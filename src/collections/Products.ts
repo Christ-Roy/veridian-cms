@@ -2,14 +2,15 @@ import type { CollectionBeforeValidateHook, CollectionConfig } from 'payload'
 import { APIError } from 'payload'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
-const rejectEmptyNameOrSlug: CollectionBeforeValidateHook = ({ data }) => {
+// Payload's `required: true` on `name` does not catch whitespace-only values —
+// `payload.create({ data: { name: '   ' } })` succeeds without this hook. We
+// only guard `name` here because the field-level `slug.beforeValidate` (below)
+// auto-generates the slug from `name` whenever slug is empty, making any
+// top-level slug guard unreachable in practice.
+const rejectEmptyName: CollectionBeforeValidateHook = ({ data }) => {
   const name = (data as { name?: string | null })?.name
-  const slug = (data as { slug?: string | null })?.slug
   if (!name || !name.trim()) {
     throw new APIError('Le nom du produit est obligatoire.', 400)
-  }
-  if (!slug || !slug.trim()) {
-    throw new APIError('Le slug du produit est obligatoire.', 400)
   }
   return data
 }
@@ -51,7 +52,7 @@ export const Products: CollectionConfig = {
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
-    beforeValidate: [rejectEmptyNameOrSlug],
+    beforeValidate: [rejectEmptyName],
   },
   fields: [
     {
