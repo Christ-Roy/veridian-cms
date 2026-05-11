@@ -54,6 +54,12 @@ RUN adduser --system --uid 1001 nextjs
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
 
+# Payload uploads land in /app/media. The container runs as `nextjs` (uid 1001)
+# but WORKDIR is owned by root, so without this Payload's `mkdir media` fails
+# with EACCES on first upload. Mounting a volume on /app/media in compose
+# preserves uploads across restarts.
+RUN mkdir media && chown nextjs:nodejs media
+
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./

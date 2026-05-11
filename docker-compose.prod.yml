@@ -14,6 +14,8 @@ services:
     depends_on:
       cms-postgres:
         condition: service_healthy
+    volumes:
+      - cms-media:/app/media
     networks:
       - dokploy-network
       - cms-internal
@@ -46,6 +48,7 @@ services:
 
 volumes:
   cms-pgdata:
+  cms-media:
 
 networks:
   dokploy-network:

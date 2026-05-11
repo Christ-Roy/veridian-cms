@@ -1,4 +1,5 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeDeleteHook, CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 import {
   HeroBlock,
   ServicesBlock,
@@ -14,6 +15,28 @@ import {
   QuoteCardBlock,
 } from '../blocks'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+
+const PROTECTED_SLUGS = new Set([
+  'home',
+  'contact',
+  'mentions-legales',
+  'politique-confidentialite',
+])
+
+const blockProtectedSlugDelete: CollectionBeforeDeleteHook = async ({ req, id }) => {
+  const isSuperAdmin = (req.user as { roles?: string[] | null } | null)?.roles?.includes(
+    'super-admin',
+  )
+  if (isSuperAdmin) return
+  const page = await req.payload.findByID({ collection: 'pages', id, depth: 0, req })
+  const slug = (page as { slug?: string })?.slug
+  if (slug && PROTECTED_SLUGS.has(slug)) {
+    throw new APIError(
+      `Page "${slug}" protégée — suppression interdite (contactez un super-admin).`,
+      403,
+    )
+  }
+}
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -39,6 +62,7 @@ export const Pages: CollectionConfig = {
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
+    beforeDelete: [blockProtectedSlugDelete],
   },
   fields: [
     { name: 'title', type: 'text', required: true, label: 'Titre de la page' },

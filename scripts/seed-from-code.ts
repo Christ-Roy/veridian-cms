@@ -186,9 +186,26 @@ async function main() {
     // ==== PAGES (default) ====
     // Cherche un export qui correspond au nom du fichier
     // services.ts → SERVICES ; politique-confidentialite.ts → POLITIQUE_CONFIDENTIALITE
+    //
+    // Deux formats supportés :
+    //   1. Legacy : `export const SERVICES = [block1, block2, ...]`
+    //   2. Objet  : `export const SERVICES = { pageTitle: 'Services', blocks: [...] }`
+    //      → pageTitle = label admin court, séparé du titre éditorial du hero
     const nameUpper = name.toUpperCase().replace(/-/g, '_')
-    const rawBlocks =
+    const rawExport =
       mod[nameUpper] || mod.HOME || mod.CONTENT || mod.BLOCKS || mod.default
+    let rawBlocks: unknown
+    let pageTitle: string | undefined
+    if (Array.isArray(rawExport)) {
+      rawBlocks = rawExport
+    } else if (
+      rawExport &&
+      typeof rawExport === 'object' &&
+      Array.isArray((rawExport as { blocks?: unknown }).blocks)
+    ) {
+      rawBlocks = (rawExport as { blocks: unknown[] }).blocks
+      pageTitle = (rawExport as { pageTitle?: string }).pageTitle
+    }
     if (!Array.isArray(rawBlocks)) {
       console.warn(`⚠️  ${file} : pas de export ${nameUpper}/HOME/CONTENT/default reconnu, skip`)
       continue
@@ -199,7 +216,8 @@ async function main() {
       'GET',
       `/pages?where[and][0][tenant][equals]=${tenantId}&where[and][1][slug][equals]=${encodeURIComponent(name)}&limit=1&draft=true`,
     )
-    const title = (blocks[0] as { title?: string })?.title || name
+    // Préférence : pageTitle explicite → hero title → nom de fichier
+    const title = pageTitle || (blocks[0] as { title?: string })?.title || name
 
     if (existing.docs[0]) {
       // draft=false = écrit directement sur la version published
