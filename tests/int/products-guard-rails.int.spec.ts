@@ -7,7 +7,7 @@
  * the empty + whitespace cases pass (no error). Restoring → green again.
  *
  * Needs DATABASE_URL pointing to a local Postgres — read from .env by
- * vitest.setup.ts.
+ * vitest.setup.ts. Default environment is `node` (cf. vitest.config.mts).
  */
 import { getPayload, Payload } from 'payload'
 import config from '@/payload.config'

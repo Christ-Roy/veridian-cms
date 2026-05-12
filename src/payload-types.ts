@@ -282,10 +282,16 @@ export interface Page {
     | (
         | {
             /**
-             * Petit texte au-dessus du titre (ex : "Artisan certifié RGE").
+             * Petit texte au-dessus du titre (ex : "Artisan certifié RGE"). Max 80 caractères.
              */
             eyebrow?: string | null;
+            /**
+             * Titre principal du bandeau. Max 120 caractères pour rester lisible.
+             */
             title: string;
+            /**
+             * Sous-titre court (1-2 phrases). Max 300 caractères.
+             */
             subtitle?: string | null;
             image?: (number | null) | Media;
             ctas?:

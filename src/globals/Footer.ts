@@ -1,5 +1,17 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeDeleteHook, CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+
+const blockFooterDelete: CollectionBeforeDeleteHook = ({ req }) => {
+  const isSuperAdmin = (req.user as { roles?: string[] | null } | null)?.roles?.includes(
+    'super-admin',
+  )
+  if (isSuperAdmin) return
+  throw new APIError(
+    "Le pied de page est un élément structurel du site — suppression interdite (contactez un super-admin).",
+    403,
+  )
+}
 
 export const Footer: CollectionConfig = {
   slug: 'footer',
@@ -16,6 +28,7 @@ export const Footer: CollectionConfig = {
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
+    beforeDelete: [blockFooterDelete],
   },
   fields: [
     {

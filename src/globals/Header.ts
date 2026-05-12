@@ -1,6 +1,18 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeDeleteHook, CollectionConfig } from 'payload'
+import { APIError } from 'payload'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
+
+const blockHeaderDelete: CollectionBeforeDeleteHook = ({ req }) => {
+  const isSuperAdmin = (req.user as { roles?: string[] | null } | null)?.roles?.includes(
+    'super-admin',
+  )
+  if (isSuperAdmin) return
+  throw new APIError(
+    "L'en-tête est un élément structurel du site — suppression interdite (contactez un super-admin).",
+    403,
+  )
+}
 
 export const Header: CollectionConfig = {
   slug: 'header',
@@ -18,6 +30,7 @@ export const Header: CollectionConfig = {
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
+    beforeDelete: [blockHeaderDelete],
   },
   fields: [
     { name: 'logo', type: 'upload', relationTo: 'media', label: 'Logo', admin: uploadWithPreviewAdmin() },

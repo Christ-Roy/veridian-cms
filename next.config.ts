@@ -8,6 +8,7 @@ const dirname = path.dirname(__filename)
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  allowedDevOrigins: ['cms.dev.veridian.site'],
   typescript: {
     ignoreBuildErrors: true,
   },

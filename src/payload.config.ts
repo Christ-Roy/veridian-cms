@@ -96,16 +96,33 @@ export default buildConfig({
     livePreview: {
       url: async ({ data, payload, collectionConfig, globalConfig }) => {
         const t = data?.tenant
+        let tenantSlug: string | undefined
         let base: string | undefined
-        if (typeof t === 'object' && t?.siteUrl) {
-          base = t.siteUrl
+        if (typeof t === 'object' && t) {
+          base = (t as { siteUrl?: string }).siteUrl
+          tenantSlug = (t as { slug?: string }).slug
         } else if (typeof t === 'number' || typeof t === 'string') {
           try {
             const tenant = await payload.findByID({ collection: 'tenants', id: t, depth: 0 })
             base = (tenant as { siteUrl?: string })?.siteUrl
+            tenantSlug = (tenant as { slug?: string })?.slug
           } catch {
             base = undefined
           }
+        }
+        // Override par env : PREVIEW_SITE_URL_MAP={"avse":"https://avse.dev.veridian.site",...}
+        // ou PREVIEW_SITE_BASE_OVERRIDE=https://staging-site.example.com (catch-all dev)
+        try {
+          const mapRaw = process.env.PREVIEW_SITE_URL_MAP
+          if (mapRaw && tenantSlug) {
+            const map = JSON.parse(mapRaw) as Record<string, string>
+            if (map[tenantSlug]) base = map[tenantSlug]
+          }
+        } catch {
+          // JSON invalide, ignorer
+        }
+        if (!base && process.env.PREVIEW_SITE_BASE_OVERRIDE) {
+          base = process.env.PREVIEW_SITE_BASE_OVERRIDE
         }
         if (!base) return 'about:blank'
         // Header/Footer : preview sur la page d'accueil (ils s'affichent partout)

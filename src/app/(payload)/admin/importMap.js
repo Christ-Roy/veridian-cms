@@ -1,4 +1,5 @@
 import { TenantField as TenantField_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
+import { MediaGrid as MediaGrid_29726543588b5185a0cfb20f8aae0900 } from '../../../components/MediaGrid/index.tsx'
 import { AssignTenantFieldTrigger as AssignTenantFieldTrigger_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
 import { WatchTenantCollection as WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
 import { UploadWithPreview as UploadWithPreview_9d9b067538ca021d06e4d8af635569ae } from '../../../components/UploadWithPreview/index.tsx'
@@ -45,6 +46,7 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 
 export const importMap = {
   "@payloadcms/plugin-multi-tenant/client#TenantField": TenantField_1d0591e3cf4f332c83a86da13a0de59a,
+  "/components/MediaGrid/index.tsx#MediaGrid": MediaGrid_29726543588b5185a0cfb20f8aae0900,
   "@payloadcms/plugin-multi-tenant/client#AssignTenantFieldTrigger": AssignTenantFieldTrigger_1d0591e3cf4f332c83a86da13a0de59a,
   "@payloadcms/plugin-multi-tenant/client#WatchTenantCollection": WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a,
   "/components/UploadWithPreview/index.tsx#UploadWithPreview": UploadWithPreview_9d9b067538ca021d06e4d8af635569ae,

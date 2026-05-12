@@ -1030,15 +1030,25 @@ body.preview-maximized {
 }
 
 
-// === UploadWithPreview — thumbnail à côté du sélecteur d'upload ===
+// === UploadWithPreview — thumbnail + bouton "Remplacer" + drop overlay ===
 .veridian-upload-with-preview {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  position: relative;
 
   &__field {
     flex: 1;
     min-width: 0;
+  }
+
+  &__preview {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: stretch;
+    margin-top: 24px; // align avec le top du UploadField (sous son label)
   }
 
   &__thumb {
@@ -1050,7 +1060,6 @@ body.preview-maximized {
     overflow: hidden;
     display: block;
     background: var(--theme-elevation-50);
-    margin-top: 24px; // align avec le top du UploadField (sous son label)
     transition: border-color 120ms ease;
 
     img {
@@ -1072,16 +1081,220 @@ body.preview-maximized {
       font-size: 0.75rem;
       text-align: center;
       padding: 8px;
+      margin-top: 24px;
+    }
+  }
+
+  &__replace-btn {
+    width: 150px;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid $veridian-dark;
+    background: $veridian-mint-light;
+    color: $veridian-dark;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, transform 80ms ease;
+    line-height: 1.2;
+
+    &:hover {
+      background: $veridian-dark;
+      color: $veridian-mint;
+    }
+
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+
+  &__hint {
+    flex-shrink: 0;
+    width: 200px;
+    margin-top: 24px;
+    padding: 10px 12px;
+    border: 1px dashed var(--theme-elevation-200);
+    border-radius: 6px;
+    background: var(--theme-elevation-50);
+    font-size: 11px;
+    color: var(--theme-elevation-450, $neutral-500);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  &__error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: hsl(0, 72%, 96%);
+    border: 1px solid hsl(0, 72%, 80%);
+    color: hsl(0, 72%, 35%);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  &__drop-overlay {
+    position: absolute;
+    inset: -4px;
+    border: 2px dashed $veridian-dark;
+    border-radius: 8px;
+    background: rgba($veridian-mint-light, 0.85);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    color: $veridian-dark;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  &--dragging {
+    .veridian-upload-with-preview__field,
+    .veridian-upload-with-preview__preview,
+    .veridian-upload-with-preview__hint {
+      opacity: 0.6;
     }
   }
 
   @media (max-width: 640px) {
     flex-direction: column;
 
-    &__thumb {
+    &__preview,
+    &__thumb,
+    &__hint {
       width: 100%;
       max-width: 240px;
       margin-top: 8px;
     }
+
+    &__replace-btn {
+      width: 100%;
+      max-width: 240px;
+    }
+  }
+}
+
+
+// === MediaGrid — grille de vignettes au-dessus de la list view media ===
+// Affiché via admin.components.beforeListTable sur la collection media.
+// Apparaît aussi dans le drawer "Choisir parmi les existants" → résout
+// le problème "Didier ne peut pas choisir visuellement parmi 253 médias".
+.veridian-media-grid {
+  margin: 0 0 20px;
+  padding: 16px;
+  background: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-100);
+  border-radius: 8px;
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  &__title {
+    font-size: 13px;
+    font-weight: 600;
+    color: $veridian-dark;
+  }
+
+  &__loading {
+    font-size: 12px;
+    color: $neutral-500;
+  }
+
+  &__error {
+    padding: 8px 12px;
+    background: rgba(255, 0, 0, 0.05);
+    border: 1px solid rgba(255, 0, 0, 0.2);
+    border-radius: 4px;
+    color: #b00020;
+    font-size: 13px;
+  }
+
+  &__empty {
+    padding: 24px;
+    text-align: center;
+    color: $neutral-500;
+    font-size: 13px;
+    font-style: italic;
+  }
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+
+  &__item {
+    display: flex;
+  }
+
+  &__card {
+    appearance: none;
+    background: var(--theme-bg);
+    border: 1px solid var(--theme-elevation-150);
+    border-radius: 6px;
+    padding: 6px;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+
+    &:hover {
+      border-color: $veridian-mint;
+      box-shadow: 0 2px 8px rgba($veridian-dark, 0.08);
+      transform: translateY(-1px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid $veridian-mint;
+      outline-offset: 2px;
+    }
+  }
+
+  &__thumb {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--theme-elevation-100);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+  }
+
+  &__placeholder {
+    font-size: 12px;
+    font-weight: 600;
+    color: $neutral-500;
+    letter-spacing: 0.5px;
+  }
+
+  &__label {
+    font-size: 12px;
+    line-height: 1.3;
+    color: $veridian-dark;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 }

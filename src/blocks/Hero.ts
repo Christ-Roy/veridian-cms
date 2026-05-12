@@ -5,9 +5,28 @@ export const HeroBlock: Block = {
   slug: 'hero',
   labels: { singular: 'Hero (bannière)', plural: 'Heros' },
   fields: [
-    { name: 'eyebrow', type: 'text', label: 'Pré-titre', admin: { description: 'Petit texte au-dessus du titre (ex : "Artisan certifié RGE").' } },
-    { name: 'title', type: 'text', required: true, label: 'Titre principal' },
-    { name: 'subtitle', type: 'textarea', label: 'Sous-titre' },
+    {
+      name: 'eyebrow',
+      type: 'text',
+      label: 'Pré-titre',
+      maxLength: 80,
+      admin: { description: 'Petit texte au-dessus du titre (ex : "Artisan certifié RGE"). Max 80 caractères.' },
+    },
+    {
+      name: 'title',
+      type: 'text',
+      required: true,
+      label: 'Titre principal',
+      maxLength: 120,
+      admin: { description: 'Titre principal du bandeau. Max 120 caractères pour rester lisible.' },
+    },
+    {
+      name: 'subtitle',
+      type: 'textarea',
+      label: 'Sous-titre',
+      maxLength: 300,
+      admin: { description: 'Sous-titre court (1-2 phrases). Max 300 caractères.' },
+    },
     { name: 'image', type: 'upload', relationTo: 'media', label: 'Image de fond', admin: uploadWithPreviewAdmin() },
     {
       name: 'ctas',
