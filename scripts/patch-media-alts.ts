@@ -1,6 +1,17 @@
 /**
  * Patch des alts média génériques (section 2.2 CMS-DIDIER-READY-TODO.md).
  *
+ * ⚠️ **NE PAS EXÉCUTER EN PROD SANS DRY-RUN PRÉALABLE.** Audit 2026-05-12
+ * sur cms.veridian.site : les 257 médias AVSE actuels ont déjà des alts
+ * informatifs ("Logo AVSE Monétique", "Café"), MEILLEURS que ce que ce
+ * script produirait via le filename. Le script est donc :
+ *   - **Utile** pour de futurs imports en masse via un script qui produit
+ *     des filenames structurés (`used__hero_xxx`, `stock__yyy`)
+ *   - **À éviter** sur des médias avec alts déjà saisis manuellement
+ *
+ * Le dry-run montre toujours ce qui serait modifié — toujours le lancer
+ * AVANT APPLY pour vérifier que c'est une amélioration, pas une régression.
+ *
  * Aujourd'hui beaucoup de médias prod ont un `alt` recopié du filename
  * (ex: "Café", "Caviste", "stock__Café.png"). Inutile pour Didier qui choisit
  * dans le drawer, et nul pour l'accessibilité.

@@ -203,6 +203,109 @@ export interface Tenant {
    * URL appelée pour rebuild le site quand une page est publiée
    */
   cfDeployHook?: string | null;
+  /**
+   * Données légales et identité juridique — affichées sur les mentions légales du site et dans les emails.
+   */
+  company?: {
+    /**
+     * Ex : VERIDIAN SAS
+     */
+    legalName?: string | null;
+    legalForm?: ('SARL' | 'SAS' | 'SASU' | 'EURL' | 'SA' | 'EI' | 'AE' | 'ASSO') | null;
+    /**
+     * Ex : "10 000 €" ou "Variable"
+     */
+    capital?: string | null;
+    /**
+     * 9 chiffres
+     */
+    siren?: string | null;
+    /**
+     * 14 chiffres (siège social)
+     */
+    siret?: string | null;
+    /**
+     * Ex : FR12345678901
+     */
+    tvaIntra?: string | null;
+    /**
+     * Ex : 6201Z
+     */
+    naf?: string | null;
+    /**
+     * Ex : Paris, Lyon
+     */
+    rcs?: string | null;
+    /**
+     * Ex : Robert Brunon
+     */
+    directorName?: string | null;
+    foundedYear?: number | null;
+  };
+  /**
+   * Couleurs et typographie du site. Modifier puis publier une page pour déclencher le rebuild Cloudflare Pages.
+   */
+  branding?: {
+    /**
+     * Ex : #0a2540 (bleu marine). Utilisée sur boutons primaires, liens, focus rings.
+     */
+    primaryColor?: string | null;
+    /**
+     * Ex : #ffd23f (jaune). Utilisée pour les highlights, badges, hover states.
+     */
+    accentColor?: string | null;
+    borderRadius?: ('none' | 'sm' | 'md' | 'lg' | 'pill') | null;
+    fontFamily?: ('inter' | 'playfair' | 'cormorant' | 'lora' | 'system') | null;
+  };
+  /**
+   * Coordonnées affichées sur le site (header, footer, page contact).
+   */
+  contact?: {
+    phones?:
+      | {
+          /**
+           * Ex : Mobile, Fixe, Hotline 24/7
+           */
+          label?: string | null;
+          /**
+           * Format FR : 06 12 34 56 78 ou +33 6 12 34 56 78
+           */
+          number: string;
+          /**
+           * Un seul numéro principal — il sera utilisé sur les boutons "Appelez-nous".
+           */
+          primary?: boolean | null;
+          id?: string | null;
+        }[]
+      | null;
+    email?: string | null;
+    address?: {
+      street?: string | null;
+      /**
+       * 5 chiffres
+       */
+      zip?: string | null;
+      city?: string | null;
+      country?: string | null;
+    };
+    /**
+     * Ex : Île-de-France et Hauts-de-France
+     */
+    serviceZone?: string | null;
+    hours?:
+      | {
+          /**
+           * Ex : Lun–Ven, Samedi
+           */
+          day: string;
+          /**
+           * Ex : 8h–18h, Fermé
+           */
+          time: string;
+          id?: string | null;
+        }[]
+      | null;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -1240,6 +1343,57 @@ export interface TenantsSelect<T extends boolean = true> {
   siteUrl?: T;
   cfPagesProject?: T;
   cfDeployHook?: T;
+  company?:
+    | T
+    | {
+        legalName?: T;
+        legalForm?: T;
+        capital?: T;
+        siren?: T;
+        siret?: T;
+        tvaIntra?: T;
+        naf?: T;
+        rcs?: T;
+        directorName?: T;
+        foundedYear?: T;
+      };
+  branding?:
+    | T
+    | {
+        primaryColor?: T;
+        accentColor?: T;
+        borderRadius?: T;
+        fontFamily?: T;
+      };
+  contact?:
+    | T
+    | {
+        phones?:
+          | T
+          | {
+              label?: T;
+              number?: T;
+              primary?: T;
+              id?: T;
+            };
+        email?: T;
+        address?:
+          | T
+          | {
+              street?: T;
+              zip?: T;
+              city?: T;
+              country?: T;
+            };
+        serviceZone?: T;
+        hours?:
+          | T
+          | {
+              day?: T;
+              time?: T;
+              id?: T;
+            };
+      };
   updatedAt?: T;
   createdAt?: T;
 }
