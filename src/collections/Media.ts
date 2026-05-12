@@ -12,7 +12,13 @@ export const Media: CollectionConfig = {
     group: 'Mon site',
   },
   access: {
-    read: ({ req }) => Boolean(req.user),
+    // Public : les sites clients servent les médias via cms.veridian.site/api/media/file/*
+    // sans cookie ni API key (visiteurs anonymes des sites CF Pages).
+    read: () => true,
+    // Auth requis pour modifier — multi-tenant plugin filtre ensuite par tenant.
+    create: ({ req }) => Boolean(req.user),
+    update: ({ req }) => Boolean(req.user),
+    delete: ({ req }) => Boolean(req.user),
   },
   fields: [
     {
