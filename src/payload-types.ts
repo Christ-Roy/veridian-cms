@@ -438,6 +438,34 @@ export interface Page {
             title?: string | null;
             subtitle?: string | null;
             /**
+             * 2 à 6 chiffres affichés en grille. Au-delà ça devient illisible.
+             */
+            items?:
+              | {
+                  /**
+                   * Ex : "1500+", "20 ans", "7j/7", "98%"
+                   */
+                  value: string;
+                  /**
+                   * Ex : "Clients accompagnés", "D'expérience", "Disponibilité"
+                   */
+                  label: string;
+                  /**
+                   * Petite phrase sous le label. Ex : "Toutes tailles confondues"
+                   */
+                  hint?: string | null;
+                  id?: string | null;
+                }[]
+              | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'stats';
+          }
+        | {
+            eyebrow?: string | null;
+            title?: string | null;
+            subtitle?: string | null;
+            /**
              * Exactement 2 cartes côte à côte.
              */
             cards?:
@@ -614,6 +642,34 @@ export interface Page {
             id?: string | null;
             blockName?: string | null;
             blockType: 'testimonials';
+          }
+        | {
+            eyebrow?: string | null;
+            title?: string | null;
+            subtitle?: string | null;
+            /**
+             * Liste de questions/réponses. Pas de limite, mais 5-10 questions est l'idéal pour le SEO.
+             */
+            items?:
+              | {
+                  /**
+                   * Formuler comme l'utilisateur la poserait. Ex : "Quel délai de livraison pour un TPE ?"
+                   */
+                  question: string;
+                  /**
+                   * Réponse concise (1-3 paragraphes). Pour du texte riche, créer un bloc séparé.
+                   */
+                  answer: string;
+                  id?: string | null;
+                }[]
+              | null;
+            /**
+             * Permet à Google d'afficher les questions directement dans les résultats de recherche. Recommandé.
+             */
+            jsonLd?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'faq';
           }
         | {
             title?: string | null;
@@ -1448,6 +1504,23 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
+        stats?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              items?:
+                | T
+                | {
+                    value?: T;
+                    label?: T;
+                    hint?: T;
+                    id?: T;
+                  };
+              id?: T;
+              blockName?: T;
+            };
         cards2?:
           | T
           | {
@@ -1598,6 +1671,23 @@ export interface PagesSelect<T extends boolean = true> {
                     avatar?: T;
                     id?: T;
                   };
+              id?: T;
+              blockName?: T;
+            };
+        faq?:
+          | T
+          | {
+              eyebrow?: T;
+              title?: T;
+              subtitle?: T;
+              items?:
+                | T
+                | {
+                    question?: T;
+                    answer?: T;
+                    id?: T;
+                  };
+              jsonLd?: T;
               id?: T;
               blockName?: T;
             };

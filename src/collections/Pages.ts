@@ -13,6 +13,8 @@ import {
   LogoWallBlock,
   SplitImageTextBlock,
   QuoteCardBlock,
+  StatsBlock,
+  FAQBlock,
 } from '../blocks'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 
@@ -86,6 +88,7 @@ export const Pages: CollectionConfig = {
       blocks: [
         HeroBlock,
         ServicesBlock,
+        StatsBlock,
         Cards2Block,
         Cards4WithIconsBlock,
         SplitImageTextBlock,
@@ -93,6 +96,7 @@ export const Pages: CollectionConfig = {
         GalleryBlock,
         LogoWallBlock,
         TestimonialsBlock,
+        FAQBlock,
         RichTextBlock,
         CTABlock,
         FormBlock,
