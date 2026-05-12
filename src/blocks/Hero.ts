@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const HeroBlock: Block = {
   slug: 'hero',
@@ -7,7 +8,7 @@ export const HeroBlock: Block = {
     { name: 'eyebrow', type: 'text', label: 'Pré-titre', admin: { description: 'Petit texte au-dessus du titre (ex : "Artisan certifié RGE").' } },
     { name: 'title', type: 'text', required: true, label: 'Titre principal' },
     { name: 'subtitle', type: 'textarea', label: 'Sous-titre' },
-    { name: 'image', type: 'upload', relationTo: 'media', label: 'Image de fond' },
+    { name: 'image', type: 'upload', relationTo: 'media', label: 'Image de fond', admin: uploadWithPreviewAdmin() },
     {
       name: 'ctas',
       type: 'array',

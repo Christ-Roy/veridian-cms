@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const Header: CollectionConfig = {
   slug: 'header',
@@ -19,7 +20,7 @@ export const Header: CollectionConfig = {
     afterChange: [triggerSiteRebuild],
   },
   fields: [
-    { name: 'logo', type: 'upload', relationTo: 'media', label: 'Logo' },
+    { name: 'logo', type: 'upload', relationTo: 'media', label: 'Logo', admin: uploadWithPreviewAdmin() },
     {
       name: 'logoText',
       type: 'text',

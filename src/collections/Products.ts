@@ -1,6 +1,7 @@
 import type { CollectionBeforeValidateHook, CollectionConfig } from 'payload'
 import { APIError } from 'payload'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 // Payload's `required: true` on `name` does not catch whitespace-only values —
 // `payload.create({ data: { name: '   ' } })` succeeds without this hook. We
@@ -138,6 +139,7 @@ export const Products: CollectionConfig = {
       type: 'upload',
       relationTo: 'media',
       label: 'Photo produit (upload)',
+      admin: uploadWithPreviewAdmin(),
     },
     {
       name: 'imageFallbackUrl',

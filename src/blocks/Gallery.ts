@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const GalleryBlock: Block = {
   slug: 'gallery',
@@ -13,7 +14,7 @@ export const GalleryBlock: Block = {
       labels: { singular: 'Photo', plural: 'Photos' },
       minRows: 1,
       fields: [
-        { name: 'image', type: 'upload', relationTo: 'media', required: true, label: 'Image' },
+        { name: 'image', type: 'upload', relationTo: 'media', required: true, label: 'Image', admin: uploadWithPreviewAdmin() },
         { name: 'caption', type: 'text', label: 'Légende' },
       ],
     },

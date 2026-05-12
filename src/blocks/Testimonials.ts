@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const TestimonialsBlock: Block = {
   slug: 'testimonials',
@@ -15,7 +16,7 @@ export const TestimonialsBlock: Block = {
         { name: 'quote', type: 'textarea', required: true, label: 'Témoignage' },
         { name: 'author', type: 'text', required: true, label: 'Nom du client' },
         { name: 'role', type: 'text', label: 'Statut', admin: { description: "Ex : 'Cliente particulière, Lyon 2ᵉ'" } },
-        { name: 'avatar', type: 'upload', relationTo: 'media', label: 'Photo du client' },
+        { name: 'avatar', type: 'upload', relationTo: 'media', label: 'Photo du client', admin: uploadWithPreviewAdmin() },
       ],
     },
   ],

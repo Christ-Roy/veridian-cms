@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const Cards2Block: Block = {
   slug: 'cards2',
@@ -28,7 +29,7 @@ export const Cards2Block: Block = {
             { name: 'text', type: 'text', required: true, label: 'Texte' },
           ],
         },
-        { name: 'image', type: 'upload', relationTo: 'media', label: 'Image (optionnelle)' },
+        { name: 'image', type: 'upload', relationTo: 'media', label: 'Image (optionnelle)', admin: uploadWithPreviewAdmin() },
       ],
     },
   ],

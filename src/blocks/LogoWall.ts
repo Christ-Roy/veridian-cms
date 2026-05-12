@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const LogoWallBlock: Block = {
   slug: 'logoWall',
@@ -15,7 +16,7 @@ export const LogoWallBlock: Block = {
       minRows: 1,
       fields: [
         { name: 'name', type: 'text', required: true, label: 'Nom du partenaire' },
-        { name: 'image', type: 'upload', relationTo: 'media', label: 'Logo (sinon le nom est affiché en wordmark)' },
+        { name: 'image', type: 'upload', relationTo: 'media', label: 'Logo (sinon le nom est affiché en wordmark)', admin: uploadWithPreviewAdmin() },
         { name: 'linkUrl', type: 'text', label: 'URL (optionnel)' },
       ],
     },

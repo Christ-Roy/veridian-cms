@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 export const SplitImageTextBlock: Block = {
   slug: 'splitImageText',
@@ -6,7 +7,7 @@ export const SplitImageTextBlock: Block = {
   fields: [
     { name: 'eyebrow', type: 'text', label: 'Pré-titre' },
     { name: 'title', type: 'text', label: 'Titre' },
-    { name: 'image', type: 'upload', relationTo: 'media', label: 'Image (upload)' },
+    { name: 'image', type: 'upload', relationTo: 'media', label: 'Image (upload)', admin: uploadWithPreviewAdmin() },
     {
       name: 'imageFallbackUrl',
       type: 'text',

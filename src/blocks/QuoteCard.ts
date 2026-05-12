@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 /**
  * Bloc "Carte avec citation + image + stats" — utilisé sur AVSE pour la
@@ -26,9 +27,9 @@ export const QuoteCardBlock: Block = {
       type: 'upload',
       relationTo: 'media',
       label: 'Image',
-      admin: {
+      admin: uploadWithPreviewAdmin({
         description: 'Photo principale de la carte (portrait, format vertical recommandé).',
-      },
+      }),
     },
     {
       name: 'imageFallbackUrl',
