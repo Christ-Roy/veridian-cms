@@ -1,5 +1,6 @@
 import type { CollectionBeforeValidateHook, CollectionConfig } from 'payload'
 import { APIError } from 'payload'
+import { canCreate, canDelete, canRead, canUpdate } from '../lib/access'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
@@ -43,7 +44,10 @@ export const Products: CollectionConfig = {
     listSearchableFields: ['name', 'brand', 'category'],
   },
   access: {
-    read: ({ req }) => Boolean(req.user),
+    read: canRead,
+    create: canCreate, // super-admin + client (PAS editor)
+    update: canUpdate, // tous
+    delete: canDelete, // super-admin + client (PAS editor)
   },
   versions: {
     drafts: {

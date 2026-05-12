@@ -1,5 +1,6 @@
 import type { CollectionBeforeDeleteHook, CollectionConfig } from 'payload'
 import { APIError } from 'payload'
+import { canCreate, canDelete, canRead, canUpdate } from '../lib/access'
 import {
   HeroBlock,
   ServicesBlock,
@@ -53,7 +54,10 @@ export const Pages: CollectionConfig = {
     group: 'Mon site',
   },
   access: {
-    read: ({ req }) => Boolean(req.user),
+    read: canRead,
+    create: canCreate, // super-admin + client (PAS editor)
+    update: canUpdate, // tous (multi-tenant filtre par tenant)
+    delete: canDelete, // super-admin + client (PAS editor)
   },
   versions: {
     drafts: {

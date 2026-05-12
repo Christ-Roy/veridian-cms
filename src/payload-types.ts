@@ -72,6 +72,7 @@ export interface Config {
     tenants: Tenant;
     pages: Page;
     products: Product;
+    partners: Partner;
     header: Header;
     footer: Footer;
     forms: Form;
@@ -90,6 +91,7 @@ export interface Config {
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    partners: PartnersSelect<false> | PartnersSelect<true>;
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     forms: FormsSelect<false> | FormsSelect<true>;
@@ -149,7 +151,7 @@ export interface UserAuthOperations {
  */
 export interface User {
   id: number;
-  roles?: ('super-admin' | 'client' | 'site-reader')[] | null;
+  roles?: ('super-admin' | 'client' | 'editor' | 'site-reader')[] | null;
   tenants?:
     | {
         tenant: number | Tenant;
@@ -203,6 +205,18 @@ export interface Tenant {
    * URL appelée pour rebuild le site quand une page est publiée
    */
   cfDeployHook?: string | null;
+  /**
+   * Active ou désactive les modules pour ce client. Le site lit ce JSON au build pour skipper les sections désactivées.
+   */
+  features?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
    * Données légales et identité juridique — affichées sur les mentions légales du site et dans les emails.
    */
@@ -984,6 +998,50 @@ export interface Product {
   _status?: ('draft' | 'published') | null;
 }
 /**
+ * Clients & partenaires que vous mettez en avant sur votre site (page /partenaires).
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "partners".
+ */
+export interface Partner {
+  id: number;
+  tenant?: (number | null) | Tenant;
+  /**
+   * Ex : "Afflelou à Cannes, Monaco et Menton"
+   */
+  name: string;
+  /**
+   * URL : /partenaires/<slug>. Lettres minuscules, tirets, pas d'espaces. Ex : afflelou-cannes-monaco
+   */
+  slug: string;
+  /**
+   * Ex : "Cannes · Monaco · Menton"
+   */
+  city?: string | null;
+  /**
+   * Code département. Ex : 06, 75, 73
+   */
+  dept?: string | null;
+  /**
+   * Logo affiché sur la liste + page détail. Format PNG/SVG recommandé.
+   */
+  logo?: (number | null) | Media;
+  /**
+   * Format markdown : titres `# H1`, listes `- item`, gras `**texte**`. Détaille le matériel installé, la durée de partenariat, etc.
+   */
+  body: string;
+  /**
+   * Optionnel — utilisé pour le tri "ancienneté" si besoin.
+   */
+  partnershipYear?: number | null;
+  /**
+   * Affiché en tête de la page partenaires.
+   */
+  featured?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Barre de navigation en haut du site.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1242,6 +1300,10 @@ export interface PayloadLockedDocument {
         value: number | Product;
       } | null)
     | ({
+        relationTo: 'partners';
+        value: number | Partner;
+      } | null)
+    | ({
         relationTo: 'header';
         value: number | Header;
       } | null)
@@ -1399,6 +1461,7 @@ export interface TenantsSelect<T extends boolean = true> {
   siteUrl?: T;
   cfPagesProject?: T;
   cfDeployHook?: T;
+  features?: T;
   company?:
     | T
     | {
@@ -1773,6 +1836,23 @@ export interface ProductsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "partners_select".
+ */
+export interface PartnersSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  slug?: T;
+  city?: T;
+  dept?: T;
+  logo?: T;
+  body?: T;
+  partnershipYear?: T;
+  featured?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

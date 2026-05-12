@@ -18,6 +18,7 @@ import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Tenants } from './collections/Tenants'
 import { Pages } from './collections/Pages'
+import { Partners } from './collections/Partners'
 import { Products } from './collections/Products'
 import { Header } from './globals/Header'
 import { Footer } from './globals/Footer'
@@ -148,7 +149,7 @@ export default buildConfig({
       ],
     },
   },
-  collections: [Users, Media, Tenants, Pages, Products, Header, Footer],
+  collections: [Users, Media, Tenants, Pages, Products, Partners, Header, Footer],
   endpoints: [healthEndpoint],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
@@ -269,6 +270,7 @@ export default buildConfig({
       collections: {
         pages: {},
         products: {},
+        partners: {},
         media: {},
         forms: {},
         'form-submissions': {},

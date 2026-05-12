@@ -77,6 +77,24 @@ export const Tenants: CollectionConfig = {
       },
     },
     {
+      name: 'features',
+      type: 'json',
+      label: 'Modules activés (super-admin)',
+      defaultValue: {
+        products: true,
+        partners: true,
+        map: false,
+        testimonials: true,
+        floatingCta: true,
+        livePreview: true,
+      },
+      admin: {
+        description: 'Active ou désactive les modules pour ce client. Le site lit ce JSON au build pour skipper les sections désactivées.',
+        condition: (_, __, { user }) =>
+          Boolean((user as { roles?: string[] | null } | null)?.roles?.includes('super-admin')),
+      },
+    },
+    {
       name: 'company',
       type: 'group',
       label: 'Informations entreprise',

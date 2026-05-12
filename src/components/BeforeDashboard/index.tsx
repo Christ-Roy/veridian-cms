@@ -137,14 +137,36 @@ const BeforeDashboard = async ({ payload, user }: ServerProps) => {
     },
   ]
 
-  const tenantName = (tenant as { name?: string } | null)?.name ?? 'votre site'
+  const tenantDoc = tenant as { name?: string; siteUrl?: string; company?: { directorName?: string | null } | null } | null
+  const tenantName = tenantDoc?.name ?? 'votre site'
+  const siteUrl = tenantDoc?.siteUrl
+  // Prénom du dirigeant si disponible côté tenant, sinon prénom user, sinon vide
+  const directorName = tenantDoc?.company?.directorName
+  const userName = (user as { name?: string | null }).name
+  const greetingName = directorName?.split(' ')[0] || userName?.split(' ')[0] || ''
 
   return (
     <div className="veridian-dashboard">
       <header className="veridian-dashboard__header">
-        <h1 className="veridian-dashboard__title">Bonjour 👋</h1>
+        <h1 className="veridian-dashboard__title">
+          Bonjour{greetingName ? ` ${greetingName}` : ''} 👋
+        </h1>
         <p className="veridian-dashboard__subtitle">
-          Vue d'ensemble de <strong>{tenantName}</strong>.
+          Vue d'ensemble de <strong>{tenantName}</strong>
+          {siteUrl ? (
+            <>
+              {' '}—{' '}
+              <a
+                href={siteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="veridian-dashboard__site-link"
+              >
+                🔗 Voir mon site
+              </a>
+            </>
+          ) : null}
+          .
         </p>
       </header>
 

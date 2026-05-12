@@ -121,7 +121,11 @@ export const Users: CollectionConfig = {
       defaultValue: ['client'],
       options: [
         { label: 'Super administrateur (Veridian)', value: 'super-admin' },
-        { label: 'Client', value: 'client' },
+        { label: 'Client (autonomie complète sur son tenant)', value: 'client' },
+        {
+          label: 'Éditeur (peut modifier le contenu existant, pas créer/supprimer)',
+          value: 'editor',
+        },
         { label: 'Lecteur site (clé API)', value: 'site-reader' },
       ],
       access: {

@@ -817,6 +817,18 @@ body.preview-maximized {
     }
   }
 
+  &__site-link {
+    color: $veridian-dark;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.12s ease;
+
+    &:hover {
+      color: darken($veridian-dark, 8%);
+      text-decoration: underline;
+    }
+  }
+
   &__grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
