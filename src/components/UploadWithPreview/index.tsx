@@ -13,39 +13,88 @@ import type { UploadFieldClientProps } from 'payload'
  * field config, etc.) — we forward them as-is to UploadField, then read the
  * value via `useField` to render the preview.
  *
- * `value` shape:
- *   - undefined / null  → no media linked yet, no preview
- *   - number / string   → just the ID (depth=0 fetch). We can't preview that
- *                         without an extra fetch; show a small placeholder
- *                         "Aperçu non disponible" instead of being silent.
- *   - { id, url, sizes } → populated media doc; pick the thumbnail size if
- *                          available, fall back to full url.
+ * `value` shape from useField for an upload field is the media ID (number or
+ * string), not the populated doc. We fetch the doc by ID to read the
+ * thumbnail URL. The fetch is keyed on the id + the field's collection so
+ * switching media re-fetches.
  */
 
 type MediaDoc = {
   id?: number | string
   url?: string | null
   filename?: string | null
-  mimeType?: string | null
   sizes?: {
     thumbnail?: { url?: string | null } | null
     card?: { url?: string | null } | null
   } | null
 }
 
-function pickPreviewUrl(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null
-  const doc = value as MediaDoc
+function pickPreviewUrl(doc: MediaDoc | null): string | null {
+  if (!doc) return null
   return doc.sizes?.thumbnail?.url || doc.sizes?.card?.url || doc.url || null
+}
+
+// Tolerate both `value = 12` and `value = { id: 12, ... }` (Payload depth>=1).
+function extractId(value: unknown): string | number | null {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && value.trim() !== '') return value
+  if (value && typeof value === 'object') {
+    const id = (value as { id?: unknown }).id
+    if (typeof id === 'number' || typeof id === 'string') return id
+  }
+  return null
+}
+
+function inlinePopulatedDoc(value: unknown): MediaDoc | null {
+  if (!value || typeof value !== 'object') return null
+  const v = value as MediaDoc
+  if (v.url || v.sizes) return v
+  return null
+}
+
+// upload fields almost always relate to a single collection — Payload's
+// relationTo is `string` here. Default to 'media' for any odd config.
+function resolveCollection(props: UploadFieldClientProps): string {
+  const field = (props as { field?: { relationTo?: string | string[] } }).field
+  const rt = field?.relationTo
+  if (typeof rt === 'string') return rt
+  if (Array.isArray(rt) && rt.length) return rt[0]
+  return 'media'
 }
 
 export const UploadWithPreview: React.FC<UploadFieldClientProps> = (props) => {
   const { value } = useField<unknown>({ path: props.path })
-  const previewUrl = pickPreviewUrl(value)
-  const hasIdOnly =
-    !previewUrl &&
-    (typeof value === 'number' || typeof value === 'string') &&
-    value !== ''
+  const collection = resolveCollection(props)
+  const id = extractId(value)
+  const inline = inlinePopulatedDoc(value)
+
+  const [fetched, setFetched] = React.useState<MediaDoc | null>(null)
+  const [fetching, setFetching] = React.useState(false)
+
+  React.useEffect(() => {
+    if (inline || id === null) {
+      setFetched(null)
+      return
+    }
+    let cancelled = false
+    setFetching(true)
+    fetch(`/api/${collection}/${id}?depth=0`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((doc: MediaDoc | null) => {
+        if (!cancelled) setFetched(doc)
+      })
+      .catch(() => {
+        if (!cancelled) setFetched(null)
+      })
+      .finally(() => {
+        if (!cancelled) setFetching(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [id, collection, inline])
+
+  const previewUrl = pickPreviewUrl(inline ?? fetched)
 
   return (
     <div className="veridian-upload-with-preview">
@@ -67,9 +116,9 @@ export const UploadWithPreview: React.FC<UploadFieldClientProps> = (props) => {
             loading="lazy"
           />
         </a>
-      ) : hasIdOnly ? (
+      ) : fetching && id !== null ? (
         <div className="veridian-upload-with-preview__thumb veridian-upload-with-preview__thumb--placeholder">
-          <span>Aperçu indisponible</span>
+          <span>Chargement…</span>
         </div>
       ) : null}
     </div>
