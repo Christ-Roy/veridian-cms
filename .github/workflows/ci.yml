@@ -94,9 +94,18 @@ jobs:
       - name: Run integration tests
         run: pnpm run test:int
 
+  # Build job désactivé temporairement (2026-05-13).
+  # Cause : packages GHCR ghcr.io/christ-roy/veridian-cms{,-builder} sont liés
+  # à l'ancien repo Christ-Roy/veridian-platform (où la CI monorepo les a poussés
+  # initialement). Le GITHUB_TOKEN de ce repo n'a donc pas write_package dessus.
+  # Fix : transférer les packages via GitHub UI Settings → Packages → Manage
+  # access, ou ajouter un PAT user-level (CR_PAT) en secret repo.
+  # En attendant : Dokploy build l'image localement à chaque deploy, donc la
+  # prod n'est pas bloquée. Réactiver `if: true` une fois les packages transférés.
   build:
-    name: Build & push (runner + builder)
+    name: Build & push GHCR (disabled — packages still linked to monorepo)
     needs: [static, audit, int]
+    if: false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -138,9 +147,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+  # E2E job désactivé temporairement (2026-05-13).
+  # Cause 1 : `runs-on: [self-hosted, linux, x64]` cible le runner
+  # veridian-dev-server qui n'est pas encore enregistré sur ce nouveau repo
+  # (piège prospection #6). Sans l'enregistrer, le job queue indéfiniment.
+  # Cause 2 : depends_on build (désactivé ci-dessus).
+  # Fix : enregistrer le runner via GitHub Settings → Actions → Runners, puis
+  # remettre `if: true`. Tant qu'on n'a pas e2e, valider manuellement via
+  # cms.veridian.site + scripts seed-tenant-data avant chaque release majeure.
   e2e:
-    name: E2E Playwright (headful)
+    name: E2E Playwright (disabled — self-hosted runner not registered)
     needs: build
+    if: false
     runs-on: [self-hosted, linux, x64]
     env:
       IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
