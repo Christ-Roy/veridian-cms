@@ -115,7 +115,7 @@ jobs:
         run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
       - name: Build runner image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runner
@@ -127,7 +127,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build builder image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: builder
