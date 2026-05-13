@@ -25,7 +25,7 @@ docker cp /tmp/cms_prod_dump.sql verger-postgres:/tmp/
 docker exec verger-postgres psql -U verger -d cms_dev -f /tmp/cms_prod_dump.sql
 
 # 3. Lancer le mode dev
-cd /home/brunon5/Bureau/veridian-platform/cms
+cd ~/Bureau/veridian-cms
 PORT=3001 npm run dev
 ```
 

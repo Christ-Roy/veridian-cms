@@ -1,47 +1,64 @@
-version: '3'
+name: veridian-cms-prod
 
 services:
-  payload:
-    image: node:20-alpine
-    ports:
-      - '3000:3000'
-    volumes:
-      - .:/home/node/app
-      - node_modules:/home/node/app/node_modules
-    working_dir: /home/node/app/
-    command: sh -c "corepack enable && corepack prepare pnpm@9.0.0 --activate && pnpm install && pnpm dev"
-    depends_on:
-      - postgres
-      # - mongo
+  cms:
+    image: veridian/cms-prod:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: veridian-cms-prod
+    restart: unless-stopped
     env_file:
       - .env
-
-  # Ensure your DATABASE_URL uses 'postgresql' as the hostname ie. postgresql://127.0.0.1:5432/your-database-name
-  postgres:
-    restart: always
-    image: postgres:latest
-    volumes:
-      - pgdata:/var/lib/postgresql
-    ports:
-      - '5432:5432'
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_DB: your-database-name # THIS MUST MATCH YOUR DB NAME IN .env
-      POSTGRES_HOST_AUTH_METHOD: trust
+      NODE_ENV: production
+      PORT: "3000"
+      SERVER_URL: ${SERVER_URL:-https://cms.veridian.site}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cms}:${POSTGRES_PASSWORD}@cms-postgres:5432/${POSTGRES_DB:-veridian_cms}
+      NODE_OPTIONS: "--max-old-space-size=1024"
+    depends_on:
+      cms-postgres:
+        condition: service_healthy
+    volumes:
+      - cms-media-prod:/app/media
+    networks:
+      - dokploy-network
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.veridian-cms-prod.rule=Host(`cms.veridian.site`)"
+      - "traefik.http.routers.veridian-cms-prod.entrypoints=websecure"
+      - "traefik.http.routers.veridian-cms-prod.tls=true"
+      - "traefik.http.routers.veridian-cms-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.veridian-cms-prod.loadbalancer.server.port=3000"
 
-  # Uncomment the following to use mongodb
-  # mongo:
-  #   image: mongo:latest
-  #   ports:
-  #     - '27017:27017'
-  #   command:
-  #     - --storageEngine=wiredTiger
-  #   volumes:
-  #     - data:/data/db
-  #   logging:
-  #     driver: none
+  cms-postgres:
+    image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
+    container_name: veridian-cms-postgres-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-veridian_cms}
+      POSTGRES_USER: ${POSTGRES_USER:-cms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cms-pgdata-prod:/var/lib/postgresql/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cms} -d ${POSTGRES_DB:-veridian_cms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  pgdata:
-  # data:
-  node_modules:
+  cms-pgdata-prod:
+    name: veridian-cms-prod_cms-pgdata-prod
+    external: true
+  cms-media-prod:
+    name: veridian-cms-prod_cms-media-prod
+    external: true
+
+networks:
+  dokploy-network:
+    external: true
