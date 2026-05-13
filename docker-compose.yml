@@ -6,7 +6,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: veridian-cms-prod
+    pull_policy: always
     restart: unless-stopped
     env_file:
       - .env
@@ -35,7 +35,6 @@ services:
 
   cms-postgres:
     image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
-    container_name: veridian-cms-postgres-prod
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-veridian_cms}
