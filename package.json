@@ -17,7 +17,9 @@
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
     "test:int": "cross-env NODE_OPTIONS=--no-deprecation vitest run --config ./vitest.config.mts",
     "test:int:fresh": "bash scripts/test-int-fresh.sh",
-    "ci": "payload migrate && pnpm build"
+    "ci": "payload migrate && pnpm build",
+    "prepare": "husky",
+    "setup-hooks": "husky"
   },
   "dependencies": {
     "@payloadcms/db-postgres": "3.82.1",
@@ -56,7 +58,8 @@
     "tsx": "4.21.0",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
-    "vitest": "4.0.18"
+    "vitest": "4.0.18",
+    "husky": "^9.1.7"
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
