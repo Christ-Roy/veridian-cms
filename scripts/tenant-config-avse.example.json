@@ -1,0 +1,45 @@
+{
+  "_comment": "Exemple de config tenant pour le script seed-tenant-data.ts. Reproduit ce qui est déjà en prod pour AVSE (seedé via seed-companyinfo-avse.ts + seed-partners-avse.ts). Pour un nouveau client : copier ce fichier, l'adapter, lancer le seed.",
+  "tenantSlug": "avse",
+  "company": {
+    "legalName": "SARL AVSE (Assistance Vente de Système d'Encaissement)",
+    "legalForm": "SARL",
+    "capital": "21 000 €",
+    "siren": "485357214",
+    "siret": "48535721400033",
+    "tvaIntra": "FR95485357214",
+    "naf": "46.66Z",
+    "rcs": "Grasse",
+    "directorName": "Didier Bollard",
+    "foundedYear": 2005
+  },
+  "contact": {
+    "email": "avse.monetique@gmail.com",
+    "phones": [
+      { "label": "Mobile", "number": "+33 6 10 44 03 63", "primary": true },
+      { "label": "Fixe", "number": "09 62 12 12 64", "primary": false }
+    ],
+    "address": {
+      "street": "19 Avenue Sidi Brahim",
+      "zip": "06130",
+      "city": "Grasse",
+      "country": "France"
+    },
+    "serviceZone": "PACA — Alpes-Maritimes, Var",
+    "hours": [{ "day": "7 j / 7", "time": "9 h à 22 h" }]
+  },
+  "branding": {
+    "primaryColor": "#1a3d2f",
+    "accentColor": "#86efac",
+    "borderRadius": "md",
+    "fontFamily": "inter"
+  },
+  "features": {
+    "products": true,
+    "partners": true,
+    "map": false,
+    "testimonials": true,
+    "floatingCta": true,
+    "livePreview": true
+  }
+}
