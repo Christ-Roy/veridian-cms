@@ -73,7 +73,8 @@
     ],
     "overrides": {
       "fast-uri": ">=3.1.2",
-      "drizzle-orm": ">=0.45.2"
+      "drizzle-orm": ">=0.45.2",
+      "picomatch": ">=4.0.4"
     }
   }
 }

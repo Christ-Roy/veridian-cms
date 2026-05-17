@@ -31,6 +31,9 @@ services:
       DATABASE_URL: postgresql://cms:${POSTGRES_PASSWORD:-staging-pwd}@cms-postgres:5432/veridian_cms
       PAYLOAD_SECRET: ${PAYLOAD_SECRET:-staging-not-secret-replace-me-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
       PAYLOAD_PUBLIC_SERVER_URL: https://cms.staging.veridian.site
+      # Auto-push schema en staging (DB éphémère par stack, pas de risque destructif).
+      # Payload détecte la table absente et la crée au boot — équivalent migrate.
+      PAYLOAD_DB_PUSH: "true"
 
       # SMTP staging (mêmes credentials, sender différent pour distinguer)
       SMTP_HOST: ${SMTP_HOST:-}
