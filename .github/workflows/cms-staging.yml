@@ -118,6 +118,7 @@ jobs:
 
           ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
             "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml pull"
+          # PAYLOAD_DB_PUSH=true (cf compose/staging.yml) → schéma auto-créé au boot
           ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
             "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d --remove-orphans"
 
