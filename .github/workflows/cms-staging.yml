@@ -53,18 +53,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push staging image
+      - name: Build and push staging image (runner + builder)
         uses: nick-fields/retry@v3
         with:
-          timeout_minutes: 20
+          timeout_minutes: 25
           max_attempts: 3
           retry_wait_seconds: 30
           retry_on: error
           command: |
+            # Runner (image de prod)
             docker buildx build \
               --target runner \
               --push \
               -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image-tag }} \
+              -f ./Dockerfile \
+              .
+            # Builder (image complète avec pnpm + payload CLI pour migrate)
+            docker buildx build \
+              --target builder \
+              --push \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${{ steps.tag.outputs.image-tag }} \
               -f ./Dockerfile \
               .
 
@@ -118,7 +126,32 @@ jobs:
 
           ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
             "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml pull"
-          # PAYLOAD_DB_PUSH=true (cf compose/staging.yml) → schéma auto-créé au boot
+
+          # 1. Démarrer Postgres seul + attendre healthy
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d cms-postgres"
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" '
+            for i in $(seq 1 20); do
+              if docker exec cms-staging-db pg_isready -U cms -d veridian_cms 2>/dev/null; then
+                echo "Postgres ready after $((i*2))s"; break
+              fi
+              sleep 2
+            done
+          '
+
+          # 2. Migrate via image builder (contient pnpm + payload CLI)
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${IMAGE_TAG} && \
+             docker run --rm \
+               --network cms-staging_cms-internal \
+               -e DATABASE_URL='postgresql://cms:${POSTGRES_PASSWORD}@cms-postgres:5432/veridian_cms' \
+               -e PAYLOAD_SECRET='${PAYLOAD_SECRET}' \
+               -e NODE_ENV=production \
+               -e SERVER_URL=https://cms.staging.veridian.site \
+               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${IMAGE_TAG} \
+               sh -c 'cd /app && pnpm payload migrate'"
+
+          # 3. Up final du runner
           ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
             "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d --remove-orphans"
 
