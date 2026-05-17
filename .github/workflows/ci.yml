@@ -1,10 +1,26 @@
 name: CMS CI/CD
 
+# Standard CI Veridian (cf veridian-platform/CI-ARCHITECTURE.md)
+# Étages : 1 (quick checks) → 2 (build + scan) → 3 (deploy prod via Dokploy)
+# Staging déployé séparément via cms-staging.yml sur push branche `staging`.
+
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'todo/**'
+      - 'docs/**'
+      - 'runbooks/**'
+      - '_archive/**'
+      - '**/*.md'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'todo/**'
+      - 'docs/**'
+      - 'runbooks/**'
+      - '_archive/**'
+      - '**/*.md'
   workflow_dispatch:
 
 concurrency:
@@ -17,12 +33,25 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: christ-roy/veridian-cms
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+  id-token: write
+
 jobs:
+  # ────────────────────────────────────────────────────────────────────────
+  # ÉTAGE 1 — Quick checks (~60-90s)
+  # ────────────────────────────────────────────────────────────────────────
   static:
-    name: Static checks
+    name: Static (lint + tsc + test-mapping + migration-safety)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          # Diff origin/main → HEAD pour check-test-mapping
+          fetch-depth: 0
+
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -31,10 +60,33 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - name: TypeScript
+
+      # --ignore-scripts : supply chain hardening (CI §17.2)
+      # Whitelist explicite dans package.json#pnpm.onlyBuiltDependencies.
+      - name: Install deps (ignore-scripts)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: TypeScript typecheck
         run: pnpm exec tsc --noEmit
 
+      - name: ESLint
+        run: pnpm exec eslint . --quiet
+        continue-on-error: true  # lint pas encore strict, à durcir progressivement
+
+      - name: Test mapping (1 fichier critique = 1 test colocalisé)
+        run: ./scripts/ci/check-test-mapping.sh
+        env:
+          BASE_REF: origin/${{ github.base_ref || 'main' }}
+
+      - name: Migration safety (Expand & Contract)
+        run: |
+          if [ -x ./scripts/ci/check-migration-safety.sh ]; then
+            ./scripts/ci/check-migration-safety.sh
+          else
+            echo "::warning::check-migration-safety.sh manquant, skip pour l'instant"
+          fi
+
+  # CVE audit (workflow réutilisable, déjà aligné --ignore-scripts)
   audit:
     name: CVE audit (high+critical bloquant)
     uses: ./.github/workflows/_audit-cve.yml
@@ -45,16 +97,63 @@ jobs:
       pnpm-version: "10.28.1"
       omit-dev: true
 
+  # Trivy FS multi-scan étage 1 (vuln + misconfig + secret + license)
+  trivy-fs:
+    name: Trivy FS (vuln + misconfig + secret + license)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Trivy FS scan (SARIF)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,misconfig,secret,license'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          # Pas exit-code=1 ici : on uploade le SARIF d'abord, le bloquant est sur trivy-fs-blocking
+          exit-code: '0'
+          timeout: '10m'
+
+      - name: Upload SARIF to GitHub Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+      - name: Trivy FS blocking gate
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,misconfig,secret'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          timeout: '10m'
+
+  # Gitleaks (secrets dans diff git, complète Trivy secret scan)
+  gitleaks:
+    name: Gitleaks (secrets in git history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ────────────────────────────────────────────────────────────────────────
+  # ÉTAGE 1 (bis) — Integration tests (Postgres réel)
+  # ────────────────────────────────────────────────────────────────────────
   int:
-    # ============================================================================
-    # Tests int CMS — pattern aligné dev local.
-    # Reproduire en local : `pnpm test:int:fresh` (wipe + recrée Postgres, applique
-    # migrations Payload, lance vitest avec exactement les mêmes vars env).
-    # Architecture validée 2026-05-12 par ci-architect (option A : migrate avant
-    # vitest, PAYLOAD_DB_PUSH=false). Évite la race pushDevSchema concurrent.
-    # Specs : tests/int/*.int.spec.ts (validators, products-guard, media-delete,
-    # patch-media-alts). Vitest singleFork + fileParallelism:false séquentiel.
-    # ============================================================================
     name: Integration tests (vitest + Postgres)
     needs: static
     runs-on: ubuntu-latest
@@ -88,269 +187,238 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - name: Apply Payload migrations (schéma prêt avant getPayload)
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Apply Payload migrations
         run: pnpm exec payload migrate
       - name: Run integration tests
         run: pnpm run test:int
 
-  # Build job désactivé temporairement (2026-05-13).
-  # Cause : packages GHCR ghcr.io/christ-roy/veridian-cms{,-builder} sont liés
-  # à l'ancien repo Christ-Roy/veridian-platform (où la CI monorepo les a poussés
-  # initialement). Le GITHUB_TOKEN de ce repo n'a donc pas write_package dessus.
-  # Fix : transférer les packages via GitHub UI Settings → Packages → Manage
-  # access, ou ajouter un PAT user-level (CR_PAT) en secret repo.
-  # En attendant : Dokploy build l'image localement à chaque deploy, donc la
-  # prod n'est pas bloquée. Réactiver `if: true` une fois les packages transférés.
-  build:
-    name: Build & push GHCR (disabled — packages still linked to monorepo)
-    needs: [static, audit, int]
-    if: false
+  # ────────────────────────────────────────────────────────────────────────
+  # ÉTAGE 2 — Build & push GHCR
+  # ────────────────────────────────────────────────────────────────────────
+  docker:
+    name: Build & push image
+    needs: [static, audit, int, trivy-fs, gitleaks]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     outputs:
-      image_tag: ${{ steps.meta.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      image-sha: ${{ steps.version.outputs.image-sha }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - id: meta
-        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Build runner image
-        uses: docker/build-push-action@v6
+      - name: Extract version (auto-bump patch)
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGE_NAME="veridian-cms"
+          EXISTING_TAGS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/users/${{ github.repository_owner }}/packages/container/${PACKAGE_NAME}/versions" \
+            --jq '.[].metadata.container.tags[]' 2>/dev/null || echo "")
+          LATEST_TAG=$(echo "$EXISTING_TAGS" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -uV | tail -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            VERSION="v0.1.0"
+          else
+            VERSION_WITHOUT_V=${LATEST_TAG#v}
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION_WITHOUT_V"
+            PATCH=$((PATCH + 1))
+            VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+          SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "image-sha=sha-${SHA7}" >> $GITHUB_OUTPUT
+          echo "Building version: ${VERSION} (sha-${SHA7})"
+
+      - name: Build and push runner (with retry)
+        uses: nick-fields/retry@v3
         with:
-          context: .
-          target: runner
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 30
+          retry_on: error
+          command: |
+            docker buildx build \
+              --target runner \
+              --push \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }} \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.image-sha }} \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+              -f ./Dockerfile \
+              .
 
-      - name: Build builder image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          target: builder
-          push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # E2E job désactivé temporairement (2026-05-13).
-  # Cause 1 : `runs-on: [self-hosted, linux, x64]` cible le runner
-  # veridian-dev-server qui n'est pas encore enregistré sur ce nouveau repo
-  # (piège prospection #6). Sans l'enregistrer, le job queue indéfiniment.
-  # Cause 2 : depends_on build (désactivé ci-dessus).
-  # Fix : enregistrer le runner via GitHub Settings → Actions → Runners, puis
-  # remettre `if: true`. Tant qu'on n'a pas e2e, valider manuellement via
-  # cms.veridian.site + scripts seed-tenant-data avant chaque release majeure.
-  e2e:
-    name: E2E Playwright (disabled — self-hosted runner not registered)
-    needs: build
-    if: false
-    runs-on: [self-hosted, linux, x64]
-    env:
-      IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
-      CMS_URL: http://localhost:3001
-      COMPOSE_PROJECT: cms-e2e-${{ github.run_id }}
+  # Trivy image scan + EOL + SBOM (capacités 5, 6, 7 du standard)
+  trivy-image:
+    name: Trivy image scan + EOL + SBOM
+    needs: docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - name: Trivy image scan (SARIF)
+        uses: aquasecurity/trivy-action@0.36.0
         with:
-          version: ${{ env.PNPM_VERSION }}
-      - uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          exit-code: '0'
+          timeout: '10m'
 
-      - name: Login GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
-
-      - name: Pull images
-        run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${{ env.IMAGE_TAG }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} veridian/cms-e2e:${{ env.IMAGE_TAG }}
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${{ env.IMAGE_TAG }} veridian/cms-builder-e2e:${{ env.IMAGE_TAG }}
-
-      - name: Start ephemeral stack
-        working-directory: e2e
-        env:
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
-        run: docker compose -f docker-compose.e2e.yml -p ${{ env.COMPOSE_PROJECT }} up -d --no-build
-
-      - name: Wait for /api/health
-        run: |
-          for i in $(seq 1 90); do
-            if curl -sf http://localhost:3001/api/health 2>/dev/null | grep -q '"status":"ok"'; then
-              echo "Health OK after ${i}x2s"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "Health failed after 3min"
-          docker compose -f e2e/docker-compose.e2e.yml -p ${{ env.COMPOSE_PROJECT }} logs --tail=200
-          exit 1
-
-      - name: Seed E2E super-admin
-        id: seed
-        run: |
-          KEY=$(docker run --rm --network ${{ env.COMPOSE_PROJECT }}_default \
-            -e DATABASE_URL=postgresql://cms:e2epass@cms-postgres-e2e:5432/veridian_cms_e2e \
-            -e PAYLOAD_SECRET=e2e_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa \
-            -e NODE_ENV=production \
-            -e SERVER_URL=http://localhost:3001 \
-            veridian/cms-builder-e2e:${{ env.IMAGE_TAG }} \
-            sh -c 'cd /app && pnpm tsx scripts/create-admin-api-key.ts' \
-            2>&1 | grep -E '^[a-f0-9]{64}$' | head -1)
-          if [ -z "$KEY" ]; then echo "API key not extracted"; exit 1; fi
-          echo "::add-mask::$KEY"
-          echo "key=$KEY" >> $GITHUB_OUTPUT
-
-      - name: Install Playwright deps
-        working-directory: e2e
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Playwright browsers
-        working-directory: e2e
-        run: pnpm exec playwright install chromium --with-deps
-
-      - name: Run E2E (headful via xvfb)
-        working-directory: e2e
-        env:
-          CMS_URL: http://localhost:3001
-          CMS_ADMIN_API_KEY: ${{ steps.seed.outputs.key }}
-          CMS_E2E_ADMIN_PASSWORD: ${{ secrets.CMS_E2E_ADMIN_PASSWORD }}
-        run: xvfb-run -a pnpm exec playwright test
-
-      - name: Stop ephemeral stack
+      - name: Upload SARIF to GitHub Security tab
         if: always()
-        working-directory: e2e
-        run: docker compose -f docker-compose.e2e.yml -p ${{ env.COMPOSE_PROJECT }} down -v
-
-      - uses: actions/upload-artifact@v4
-        if: failure()
+        uses: github/codeql-action/upload-sarif@v3
         with:
-          name: playwright-report-${{ github.run_id }}
-          path: e2e/playwright-report/
-          retention-days: 14
+          sarif_file: 'trivy-image.sarif'
+          category: 'trivy-image'
 
-      - uses: actions/upload-artifact@v4
-        if: failure()
+      - name: Trivy image blocking gate (CRIT+HIGH)
+        uses: aquasecurity/trivy-action@0.36.0
         with:
-          name: playwright-traces-${{ github.run_id }}
-          path: e2e/test-results/
-          retention-days: 14
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '1'
+          timeout: '10m'
 
-  # Deploy job désactivé depuis l'extraction polyrepo (2026-05-13).
-  # Dokploy prend le relais via webhook Git push → clone repo → build → up.
-  # Activer ce job uniquement si on veut deploy bypassant Dokploy.
-  deploy:
-    name: Deploy → OVH prod (disabled, Dokploy handles it)
-    needs: [build, e2e]
-    if: false  # Désactivé — Dokploy déploie via webhook Git
+      - name: Trivy EOL distro check
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
+          format: 'table'
+          # --exit-on-eol pas exposé par l'action ; on simule via scan
+          # OS, table affichée pour audit visuel. À durcir via trivy CLI direct.
+          scanners: 'vuln'
+          severity: 'UNKNOWN'
+          exit-code: '0'
+
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
+          format: 'cyclonedx'
+          output: 'sbom.cdx.json'
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx-${{ needs.docker.outputs.version }}
+          path: 'sbom.cdx.json'
+          retention-days: 90
+
+  # ────────────────────────────────────────────────────────────────────────
+  # ÉTAGE 3 — Deploy prod via webhook Dokploy
+  # ────────────────────────────────────────────────────────────────────────
+  deploy-prod:
+    name: Deploy → cms.veridian.site (Dokploy GitOps)
+    needs: [docker, trivy-image]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://cms.veridian.site/admin
     steps:
-      - name: Setup SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H 51.210.7.44 >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: actions/checkout@v6
 
-      - name: Deploy via pull GHCR + migrate + up
+      - name: Trigger Dokploy redeploy + retag rollback
         env:
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
+          IMAGE_VERSION: ${{ needs.docker.outputs.version }}
         run: |
-          ssh ubuntu@51.210.7.44 IMAGE_TAG="$IMAGE_TAG" bash <<'REMOTE'
-            set -e
-            cd /home/ubuntu/veridian-cms-prod
-            git fetch origin main
-            git reset --hard origin/main
-
-            # Pull GHCR (public packages, pas besoin de login)
-            docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}
-            docker pull ghcr.io/christ-roy/veridian-cms-builder:${IMAGE_TAG}
-
-            # Retag local pour que le compose (qui utilise veridian/cms-prod:latest) pointe
-            # sur la nouvelle image. Évite le drift entre tag CI et compose live.
-            docker tag ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG} veridian/cms-prod:latest
-
-            # Read POSTGRES_PASSWORD + PAYLOAD_SECRET from .env to construct DATABASE_URL
-            set -a; . .env; set +a
-
-            # Migrate DB via builder image
-            docker run --rm \
-              --network veridian-cms-prod_default \
-              -e DATABASE_URL="postgresql://${POSTGRES_USER:-cms}:${POSTGRES_PASSWORD}@cms-postgres:5432/${POSTGRES_DB:-veridian_cms}" \
-              -e PAYLOAD_SECRET="${PAYLOAD_SECRET}" \
-              -e NODE_ENV=production \
-              -e SERVER_URL="${SERVER_URL:-https://cms.veridian.site}" \
-              ghcr.io/christ-roy/veridian-cms-builder:${IMAGE_TAG} \
-              sh -c 'cd /app && pnpm payload migrate'
-
-            # Up sur le compose racine du repo standalone
-            docker compose -f docker-compose.yml -p veridian-cms-prod up -d --force-recreate cms
-          REMOTE
-
-      - name: Health check + rollback if needed
-        run: |
-          OK=0
-          for i in $(seq 1 30); do
-            if curl -sf https://cms.veridian.site/api/health | grep -q '"status":"ok"'; then
-              echo "Health OK after ${i}x6s"
-              OK=1
-              break
-            fi
-            sleep 6
-          done
-          if [ "$OK" -ne 1 ]; then
-            echo "Health failed — rolling back to previous image"
-            ssh ubuntu@51.210.7.44 bash <<'REMOTE'
-              cd /home/ubuntu/veridian-cms-prod
-              PREV_TAG=$(git rev-parse HEAD@{1})
-              echo "Rolling back to $PREV_TAG"
-              git reset --hard HEAD@{1}
-              docker pull ghcr.io/christ-roy/veridian-cms:${PREV_TAG} || docker pull ghcr.io/christ-roy/veridian-cms:latest
-              docker tag ghcr.io/christ-roy/veridian-cms:${PREV_TAG} veridian/cms-prod:latest || \
-                docker tag ghcr.io/christ-roy/veridian-cms:latest veridian/cms-prod:latest
-              docker compose -f docker-compose.yml -p veridian-cms-prod up -d --force-recreate cms
-          REMOTE
+          set -euo pipefail
+          if [ -z "$SSH_KEY" ] || [ -z "$VPS_HOST" ] || [ -z "$DOKPLOY_COMPOSE_ID" ]; then
+            echo "::error::Missing DEPLOY_SSH_KEY / VPS_HOST / DOKPLOY_COMPOSE_ID — abort"
             exit 1
           fi
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" bash -s << DEPLOY
+            set -e
+            # Tag image actuelle comme :rollback avant pull (rollback express)
+            CURRENT_ID=\$(docker images ghcr.io/christ-roy/veridian-cms:latest --format '{{.ID}}' 2>/dev/null || echo "")
+            if [ -n "\$CURRENT_ID" ]; then
+              docker tag "\$CURRENT_ID" ghcr.io/christ-roy/veridian-cms:rollback
+              echo "Tagged current image as :rollback (\$CURRENT_ID)"
+            fi
+            # Pull la nouvelle image (idempotent, Dokploy refera de toute façon)
+            docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_VERSION} || true
+            # Trigger Dokploy compose.deploy via API locale (compose.deploy = re-clone + up)
+            DKEY=\$(grep '^DOKPLOY_API_KEY=' ~/credentials/.all-creds.env | cut -d= -f2)
+            curl -sf -X POST \
+              -H "x-api-key: \$DKEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"json\":{\"composeId\":\"$DOKPLOY_COMPOSE_ID\"}}" \
+              http://localhost:3000/api/trpc/compose.deploy \
+              && echo "CMS prod deploy triggered (compose=$DOKPLOY_COMPOSE_ID)"
+          DEPLOY
 
-  # Smoke prod désactivé en même temps que deploy (cf commentaire ci-dessus).
-  # Si tu réactives deploy, réactive smoke aussi.
-  smoke:
-    name: Smoke prod (disabled, Dokploy handles it)
-    needs: deploy
-    if: false
-    runs-on: ubuntu-latest
-    steps:
-      - run: curl -sf https://cms.veridian.site/api/health | grep -q '"status":"ok"'
-      - run: |
-          code=$(curl -s -o /dev/null -w "%{http_code}" https://cms.veridian.site/admin)
-          [ "$code" = "200" ]
-      - run: |
-          curl -sf -H "Authorization: users API-Key ${{ secrets.CMS_ADMIN_API_KEY_PROD }}" \
-            https://cms.veridian.site/api/tenants | grep -q '"docs"'
-
-      - name: Telegram alert
-        if: always()
+      - name: Wait for healthy prod
         run: |
+          echo "Waiting for cms.veridian.site/api/health..."
+          for i in $(seq 1 18); do
+            if curl -sf --max-time 10 https://cms.veridian.site/api/health | grep -q '"status":"ok"'; then
+              echo "✓ CMS prod healthy after $((i*10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Health failed after 3min — triggering emergency rollback"
+          exit 1
+
+      - name: Smoke prod (admin + tenants API)
+        env:
+          CMS_ADMIN_API_KEY: ${{ secrets.CMS_ADMIN_API_KEY_PROD }}
+        run: |
+          set -e
+          code=$(curl -s -o /dev/null -w "%{http_code}" https://cms.veridian.site/admin)
+          [ "$code" = "200" ] || { echo "::error::admin retourne HTTP $code"; exit 1; }
+          curl -sf -H "Authorization: users API-Key $CMS_ADMIN_API_KEY" \
+            https://cms.veridian.site/api/tenants | grep -q '"docs"' \
+            || { echo "::error::API tenants ne retourne pas de docs"; exit 1; }
+          echo "✓ Smoke prod OK"
+
+      - name: Trigger emergency rollback on failure
+        if: failure()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GH_AUTOREVERT_PAT || secrets.GITHUB_TOKEN }}
+          event-type: rollback_triggered
+          client-payload: |
+            {
+              "app": "cms",
+              "env": "prod",
+              "reason": "deploy_smoke_failed",
+              "sha": "${{ github.sha }}",
+              "version": "${{ needs.docker.outputs.version }}"
+            }
+
+      - name: Telegram notify
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
           STATUS="${{ job.status }}"
-          ICON="OK"; [ "$STATUS" != "success" ] && ICON="FAIL"
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d "text=$ICON CMS prod $STATUS — sha=${GITHUB_SHA:0:7}" >/dev/null || true
+          ICON="✓"; [ "$STATUS" != "success" ] && ICON="✗"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=$ICON CMS prod $STATUS — ${{ needs.docker.outputs.version }} (${GITHUB_SHA:0:7})" \
+            >/dev/null || true

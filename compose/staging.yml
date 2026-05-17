@@ -1,0 +1,83 @@
+# ============================================================================
+# compose/staging.yml — Override staging (dev server, cms.staging.veridian.site)
+# ============================================================================
+#
+# Convention officielle Veridian (cf CI-ARCHITECTURE.md §9) :
+#   - 1 stack staging fixe sur cms.staging.veridian.site
+#   - Trigger : push sur branche `staging` du repo veridian-cms
+#   - Pas d'éphémère par PR pour l'instant (V1)
+#   - Réseau external : staging-edge (Traefik standalone sur dev)
+#   - DB : Postgres locale à la stack, restorée depuis snapshot prod
+#     anonymisé à chaque deploy (cf workflow cms-staging.yml)
+#
+# Combiné avec base.yml :
+#   docker compose -f compose/base.yml -f compose/staging.yml up -d
+#
+# Variables d'env attendues (.env injecté par CI) :
+#   CMS_IMAGE_TAG       = staging-<sha7> (image build par la CI)
+#   PAYLOAD_SECRET      = secret Payload staging (random 64 chars)
+#   POSTGRES_PASSWORD   = mot de passe DB staging
+# ============================================================================
+
+services:
+  cms:
+    container_name: cms-staging
+    networks:
+      - staging-edge
+      - cms-internal
+    environment:
+      DEPLOY_ENV: staging
+      SERVER_URL: https://cms.staging.veridian.site
+      DATABASE_URL: postgresql://cms:${POSTGRES_PASSWORD:-staging-pwd}@cms-postgres:5432/veridian_cms
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET:-staging-not-secret-replace-me-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+      PAYLOAD_PUBLIC_SERVER_URL: https://cms.staging.veridian.site
+
+      # SMTP staging (mêmes credentials, sender différent pour distinguer)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-staging@veridian.site}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Veridian CMS Staging}
+
+      # CORS staging (préfixes des sites de staging)
+      PAYLOAD_CORS_ORIGINS: ${PAYLOAD_CORS_ORIGINS:-https://cms.staging.veridian.site,https://app.staging.veridian.site}
+
+      # Live preview : override pour pointer les sites staging
+      PREVIEW_SITE_BASE_OVERRIDE: ${PREVIEW_SITE_BASE_OVERRIDE:-}
+    volumes:
+      - cms-staging-media:/app/media
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=staging-edge
+      - traefik.http.routers.cms-staging.rule=Host(`cms.staging.veridian.site`)
+      - traefik.http.routers.cms-staging.entrypoints=websecure
+      - traefik.http.routers.cms-staging.tls=true
+      - traefik.http.routers.cms-staging.tls.certresolver=letsencrypt
+      - traefik.http.services.cms-staging.loadbalancer.server.port=3000
+      - veridian.staging.app=cms
+
+  cms-postgres:
+    container_name: cms-staging-db
+    environment:
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-staging-pwd}
+      POSTGRES_DB: veridian_cms
+    volumes:
+      - cms-staging-pgdata:/var/lib/postgresql/data
+    networks:
+      - cms-internal
+    labels:
+      - veridian.staging.app=cms
+
+networks:
+  staging-edge:
+    external: true
+  cms-internal:
+    driver: bridge
+
+volumes:
+  cms-staging-pgdata:
+    name: cms-staging-pgdata
+  cms-staging-media:
+    name: cms-staging-media

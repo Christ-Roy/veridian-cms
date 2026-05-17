@@ -1,0 +1,61 @@
+# ============================================================================
+# compose/prod.yml — Override production CMS (cms.veridian.site)
+# ============================================================================
+#
+# Combiné avec base.yml :
+#   docker compose -f compose/base.yml -f compose/prod.yml up -d
+#
+# Variables d'env attendues (.env chargé par Dokploy) :
+#   POSTGRES_PASSWORD, PAYLOAD_SECRET, SERVER_URL, SMTP_*, ...
+# ============================================================================
+
+name: veridian-cms-prod
+
+services:
+  cms:
+    container_name: veridian-cms-prod
+    image: veridian/cms-prod:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    env_file:
+      - ../.env
+    environment:
+      SERVER_URL: ${SERVER_URL:-https://cms.veridian.site}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-cms}:${POSTGRES_PASSWORD}@cms-postgres:5432/${POSTGRES_DB:-veridian_cms}
+    volumes:
+      - cms-media-prod:/app/media
+    networks:
+      - dokploy-network
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=dokploy-network"
+      - "traefik.http.routers.veridian-cms-prod.rule=Host(`cms.veridian.site`)"
+      - "traefik.http.routers.veridian-cms-prod.entrypoints=websecure"
+      - "traefik.http.routers.veridian-cms-prod.tls=true"
+      - "traefik.http.routers.veridian-cms-prod.tls.certresolver=letsencrypt"
+      - "traefik.http.services.veridian-cms-prod.loadbalancer.server.port=3000"
+
+  cms-postgres:
+    container_name: veridian-cms-postgres-prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-veridian_cms}
+      POSTGRES_USER: ${POSTGRES_USER:-cms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - cms-pgdata-prod:/var/lib/postgresql/data
+    networks:
+      - default
+
+volumes:
+  cms-pgdata-prod:
+    name: veridian-cms-prod_cms-pgdata-prod
+    external: true
+  cms-media-prod:
+    name: veridian-cms-prod_cms-media-prod
+    external: true
+
+networks:
+  dokploy-network:
+    external: true

@@ -1,0 +1,161 @@
+name: CMS Staging (dev server)
+
+# Convention officielle Veridian (CI-ARCHITECTURE.md §9) :
+#   - 1 stack staging fixe sur cms.staging.veridian.site
+#   - Trigger : push sur branche `staging`
+#   - Deploy via SSH dev-pub → docker compose up (Traefik staging-edge)
+#   - DB Postgres locale à la stack, restorée depuis snapshot prod anonymisé
+#     (à câbler dans une 2e itération, V1 = DB vierge + seed minimal)
+
+on:
+  push:
+    branches: [staging]
+    paths-ignore:
+      - 'todo/**'
+      - 'docs/**'
+      - 'runbooks/**'
+      - '_archive/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: cms-staging-deploy
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: christ-roy/veridian-cms
+  STAGING_DIR: /opt/staging/cms
+  STAGING_URL: https://cms.staging.veridian.site
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: |
+      vars.STAGING_HOST != '' && vars.STAGING_USER != ''
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Compute image tag
+        id: tag
+        run: |
+          SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "image-tag=staging-$SHA7" >> $GITHUB_OUTPUT
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push staging image
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          retry_wait_seconds: 30
+          retry_on: error
+          command: |
+            docker buildx build \
+              --target runner \
+              --push \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image-tag }} \
+              -f ./Dockerfile \
+              .
+
+      - name: Setup SSH
+        env:
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          DEV_HOST: ${{ vars.STAGING_HOST }}
+        run: |
+          MISSING=""
+          [ -z "$SSH_KEY" ] && MISSING="$MISSING STAGING_SSH_KEY"
+          [ -z "$DEV_HOST" ] && MISSING="$MISSING STAGING_HOST"
+          if [ -n "$MISSING" ]; then
+            echo "::error::Staging credentials missing:$MISSING"
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/staging_key
+          chmod 600 ~/.ssh/staging_key
+          ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy stack
+        env:
+          DEV_HOST: ${{ vars.STAGING_HOST }}
+          DEV_USER: ${{ vars.STAGING_USER }}
+          IMAGE_TAG: ${{ steps.tag.outputs.image-tag }}
+          PAYLOAD_SECRET: ${{ secrets.STAGING_PAYLOAD_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.STAGING_POSTGRES_PASSWORD }}
+          SMTP_HOST: ${{ secrets.STAGING_SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.STAGING_SMTP_PORT }}
+          SMTP_USER: ${{ secrets.STAGING_SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.STAGING_SMTP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" "mkdir -p ${{ env.STAGING_DIR }}/compose"
+          scp -i ~/.ssh/staging_key compose/base.yml "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/compose/"
+          scp -i ~/.ssh/staging_key compose/staging.yml "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/compose/"
+
+          ENVFILE="$(mktemp)"
+          {
+            printf 'CMS_IMAGE_TAG=%s\n' "$IMAGE_TAG"
+            printf 'PAYLOAD_SECRET=%s\n' "$PAYLOAD_SECRET"
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf 'SMTP_HOST=%s\n' "${SMTP_HOST:-}"
+            printf 'SMTP_PORT=%s\n' "${SMTP_PORT:-587}"
+            printf 'SMTP_USER=%s\n' "${SMTP_USER:-}"
+            printf 'SMTP_PASSWORD=%s\n' "${SMTP_PASSWORD:-}"
+          } > "$ENVFILE"
+          scp -i ~/.ssh/staging_key "$ENVFILE" "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/.env"
+          rm -f "$ENVFILE"
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" "chmod 600 ${{ env.STAGING_DIR }}/.env"
+
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml pull"
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d --remove-orphans"
+
+      - name: Wait for healthy
+        env:
+          DEV_HOST: ${{ vars.STAGING_HOST }}
+          DEV_USER: ${{ vars.STAGING_USER }}
+        run: |
+          echo "Waiting for cms-staging to become healthy..."
+          for i in $(seq 1 36); do
+            STATUS=$(ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+              "docker inspect cms-staging --format '{{.State.Health.Status}}' 2>/dev/null" || echo "starting")
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Healthy after $((i*10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::cms-staging not healthy after 6min"
+          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
+            "docker logs cms-staging --tail 200" || true
+          exit 1
+
+      - name: Smoke test staging URL
+        run: |
+          echo "Smoke: ${{ env.STAGING_URL }}/api/health"
+          for i in $(seq 1 12); do
+            if curl -sf --max-time 10 "${{ env.STAGING_URL }}/api/health" | grep -q '"status":"ok"'; then
+              echo "✓ Staging healthy: ${{ env.STAGING_URL }}"
+              exit 0
+            fi
+            echo "Attempt $i: not ready, retry 10s..."
+            sleep 10
+          done
+          echo "::error::Smoke failed after 2min on ${{ env.STAGING_URL }}"
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f ~/.ssh/staging_key

@@ -1,0 +1,43 @@
+# ============================================================================
+# compose/base.yml — Base commune CMS (prod + staging)
+# ============================================================================
+#
+# JAMAIS lu seul. Toujours combiné avec un override :
+#   - prod    : docker compose -f compose/base.yml -f compose/prod.yml ...
+#   - staging : docker compose -f compose/base.yml -f compose/staging.yml ...
+#
+# Pour Dokploy (prod), le fichier `docker-compose.yml` à la racine reste la
+# source du déploiement actuel (Dokploy custom-git pointe dessus). Quand le
+# split base/prod sera validé côté Dokploy, on passera Dokploy sur le combo
+# base.yml + prod.yml et `docker-compose.yml` disparaîtra.
+# ============================================================================
+
+services:
+  cms:
+    image: ghcr.io/christ-roy/veridian-cms:${CMS_IMAGE_TAG:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://127.0.0.1:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: "--max-old-space-size=1024"
+    depends_on:
+      cms-postgres:
+        condition: service_healthy
+
+  cms-postgres:
+    image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cms} -d ${POSTGRES_DB:-veridian_cms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

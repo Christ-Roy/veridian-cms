@@ -1,0 +1,112 @@
+name: Emergency Rollback (prod)
+
+# Déclenché par :
+#   - Le job deploy-prod du workflow ci.yml si smoke/health échoue
+#   - Alertes Grafana Cloud (memory_creep, oom_killed, synthetic_failed_3x)
+#     via webhook GitHub `repository_dispatch`.
+#
+# Action :
+#   1. Retag image :rollback en :latest sur le VPS prod
+#   2. Recharge Dokploy compose
+#   3. Trigger emergency-revert.yml pour le revert Git
+#   4. Telegram alert
+
+on:
+  repository_dispatch:
+    types: [rollback_triggered]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Raison du rollback manuel"
+        required: true
+        default: "manual"
+
+concurrency:
+  group: cms-rollback-prod
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: christ-roy/veridian-cms
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  rollback:
+    if: github.event.client_payload.app == 'cms' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Rollback image on VPS prod
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          VPS_HOST: ${{ vars.VPS_HOST }}
+          VPS_USER: ${{ vars.VPS_USER }}
+          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" bash -s << 'ROLLBACK'
+            set -e
+            ROLLBACK_ID=$(docker images ghcr.io/christ-roy/veridian-cms:rollback --format '{{.ID}}' 2>/dev/null || echo "")
+            if [ -z "$ROLLBACK_ID" ]; then
+              echo "::error::No :rollback tag found — cannot rollback"
+              exit 1
+            fi
+            echo "Rolling back to image $ROLLBACK_ID"
+            docker tag "$ROLLBACK_ID" ghcr.io/christ-roy/veridian-cms:latest
+            DKEY=$(grep '^DOKPLOY_API_KEY=' ~/credentials/.all-creds.env | cut -d= -f2)
+            curl -sf -X POST \
+              -H "x-api-key: $DKEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"json\":{\"composeId\":\"${DOKPLOY_COMPOSE_ID}\"}}" \
+              http://localhost:3000/api/trpc/compose.deploy \
+              && echo "Rollback deploy triggered"
+          ROLLBACK
+
+      - name: Wait for rollback healthy
+        run: |
+          echo "Waiting for cms.veridian.site/api/health post-rollback..."
+          for i in $(seq 1 18); do
+            if curl -sf --max-time 10 https://cms.veridian.site/api/health | grep -q '"status":"ok"'; then
+              echo "✓ Rollback OK after $((i*10))s"
+              exit 0
+            fi
+            sleep 10
+          </dev/null && true
+          done
+          echo "::error::Rollback health failed after 3min — INCIDENT ESCALATION"
+          exit 1
+
+      - name: Trigger auto-revert PR
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GH_AUTOREVERT_PAT || secrets.GITHUB_TOKEN }}
+          event-type: revert_after_rollback
+          client-payload: |
+            {
+              "app": "cms",
+              "sha": "${{ github.event.client_payload.sha || github.sha }}",
+              "reason": "${{ github.event.client_payload.reason || inputs.reason }}"
+            }
+
+      - name: Telegram alert
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
+          REASON="${{ github.event.client_payload.reason || inputs.reason }}"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=🚨 CMS prod ROLLBACK déclenché — raison: ${REASON}" \
+            >/dev/null || true

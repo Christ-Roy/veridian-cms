@@ -1,0 +1,87 @@
+name: Emergency Revert (Git)
+
+# Déclenché par emergency-rollback.yml après un rollback Docker.
+# Crée une PR de revert du SHA fautif, l'auto-merge, et freeze main jusque-là.
+# Cf CI-ARCHITECTURE.md §17.1 — règle "rollback = revert Git automatique".
+
+on:
+  repository_dispatch:
+    types: [revert_after_rollback]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA fautif à revert"
+        required: true
+      reason:
+        description: "Raison"
+        required: false
+        default: "manual"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  revert:
+    if: github.event.client_payload.app == 'cms' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      FAULTY_SHA: ${{ github.event.client_payload.sha || inputs.sha }}
+      REASON: ${{ github.event.client_payload.reason || inputs.reason }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_AUTOREVERT_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.email "ci-bot@veridian.site"
+          git config user.name "Veridian CI Bot"
+
+      - name: Create revert branch
+        run: |
+          set -euo pipefail
+          SHORT_SHA=${FAULTY_SHA:0:8}
+          BRANCH="auto-revert/${SHORT_SHA}"
+          git checkout -b "$BRANCH"
+          git revert --no-edit "$FAULTY_SHA" || {
+            echo "::error::git revert failed for $FAULTY_SHA"
+            exit 1
+          }
+          git push origin "$BRANCH"
+          echo "revert-branch=$BRANCH" >> $GITHUB_ENV
+
+      - name: Create + auto-merge revert PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTOREVERT_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          BODY=$(cat <<EOF
+          Auto-generated revert after production rollback.
+
+          Reason: \`${REASON}\`
+          Faulty SHA: \`${FAULTY_SHA}\`
+
+          Will auto-merge when CI green. Do not push to main until merged.
+          EOF
+          )
+          gh pr create \
+            --title "revert: auto-revert ${FAULTY_SHA:0:8} (rollback prod)" \
+            --body "$BODY" \
+            --label "auto-revert" \
+            --label "critical" \
+            --head "$revert_branch" \
+            --base main || true
+          gh pr merge --auto --squash --delete-branch "$revert_branch" || true
+
+      - name: Telegram alert
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=🔄 CMS auto-revert PR créée pour ${FAULTY_SHA:0:8}" \
+            >/dev/null || true

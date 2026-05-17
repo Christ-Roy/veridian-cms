@@ -18,14 +18,19 @@
 
 - **Version** : Payload 3.82.1
 - **URL staging** : https://cms.staging.veridian.site/admin
-- **URL prod** : 🟢 https://cms.veridian.site/admin (déployée 2026-04-25)
-- **Sante** : 🟢 staging stable + prod live + CI/CD complet + monitoring
+- **URL prod** : 🟢 https://cms.veridian.site/admin (déployée 2026-04-25, Sprints 2-6 livrés 2026-05-12 → 2026-05-13)
+- **Sante** : 🟢 staging stable + prod live + CI/CD complet + monitoring + 84 tests int verts
+- **Tenants en prod** : 3 (avse, demo, fgmc) — avse complet (company, contact, branding, 47 partners seedés)
+- **Collections** : Users, Tenants, Pages, Products, Media, **Partners** (Sprint 5)
+- **Blocs Pages disponibles** : Hero, Services, **Stats**, Cards2, Cards4WithIcons, SplitImageText, QuoteCard, Gallery, LogoWall, Testimonials, **FAQ**, RichText, CTA, Form (Stats + FAQ ajoutés Sprint 4)
+- **Rôles users** : super-admin, client, **editor** (Sprint 5 — peut MODIFIER mais pas CREATE/DELETE), site-reader
   - ⚠️ backup R2 quotidien : Dokploy schedule `schedule-transmit-neural-firewall-jy3xp9`
     backupe supabase/twenty/notifuse mais **PAS le CMS** (constat 2026-05-11).
     Diff à appliquer dans script.sh : `backup_db "veridian-cms-postgres-prod" "veridian_cms" "cms" "cms"`
 - **Langue** : FR par defaut (i18n natif), EN fallback
-- **White-label** : actif (logo vert, BeforeLogin/Dashboard FR, favicon)
+- **White-label** : actif (logo vert, BeforeLogin/Dashboard FR, favicon, **greeting personnalisé "Bonjour Didier"** Sprint 5)
 - **Theme** : light force
+- **DX** : `pnpm test:int:fresh` reproduit la CI à l'identique en local (Sprint 2)
 
 ## Architecture
 
@@ -143,8 +148,142 @@ proprement (cf. `CMS-DIDIER-READY-TODO.md`).
   - 54 tests int total en 13.6s, tous green
 - [x] **Cleanup produit fantôme prod (id=28)** : déjà supprimé en session
   précédente, vérifié via API (404).
-- [ ] **Patch alts media génériques** (section 2.2 TODO Didier) — différé
-  Sprint 2 (253 docs à patcher, script séparé).
+- [x] **Patch alts media génériques** (section 2.2 TODO Didier) — script
+  livré dans Sprint 2 ci-dessous, mais **NE PAS l'exécuter sur AVSE**
+  (les 257 alts actuels saisis manuellement sont meilleurs que ce que le
+  filename produirait — vérifié en dry-run prod). Script gardé pour de
+  futurs imports en masse.
+
+### 🟢 Session 2026-05-12 (PM late) → 2026-05-13 — Sprints 2 à 6 Didier-ready
+
+Sprints livrés en chaîne sur le monorepo legacy puis migrés via extraction
+polyrepo. Tous mergés sur main + déployés en prod + validés API/QA.
+
+#### Sprint 2 — PR #52 (legacy) `2509119` — Outillage tests + dev local
+
+- [x] **`pnpm test:int:fresh`** : script qui reproduit la CI à l'identique
+  en local (PG fresh sur :5435, migrate Payload, vitest avec
+  `PAYLOAD_DB_PUSH=false`). Fix racine la race condition pushDevSchema
+  intermittente. DX permanent pour les futurs agents.
+- [x] **Tests `hero-maxlength.int.spec.ts`** : 4 specs prouvant que la
+  validation `maxLength` est enforced en mode `published` (pas en draft,
+  par design Payload autosave). Réfute le faux bug "MAJOR" remonté par
+  QA prod (toast UI confus mais la prod ne casse pas).
+- [x] **Script `patch-media-alts.ts`** + 15 tests unitaires (règles +
+  idempotence). Voir warning ci-dessus pour AVSE.
+- [x] **Fix CI** : `payload migrate` avant `vitest` au lieu de
+  `PAYLOAD_DB_PUSH=true` (anti-race condition CREATE TYPE concurrent).
+- [x] **`.env.example`** documenté avec `PAYLOAD_DB_PUSH` + clarification
+  `DATABASE_URL`.
+
+#### Sprint 3 — PR #53 (legacy) `96a3d23` — CompanyInfo + Contact + Branding sur Tenants
+
+- [x] **`Tenants.company` group** : legalName, legalForm (SARL/SAS/SASU/
+  EURL/SA/EI/AE/ASSO), capital, siren, siret (validateSiret 14 chiffres),
+  tvaIntra, naf, rcs, directorName, foundedYear.
+- [x] **`Tenants.contact` group** : phones[] (label + number
+  validateFrenchPhone + primary), email, address (street + zip
+  validateFrenchZip + city + country=France), serviceZone, hours[].
+- [x] **`Tenants.branding` group** : primaryColor + accentColor (hex
+  validés), borderRadius (none/sm/md/lg/pill), fontFamily (inter/playfair/
+  cormorant/lora/system).
+- [x] **`cms/src/lib/validators.ts`** : 7 validators FR exportables
+  (Siret, Siren, TvaIntra, FrenchPhone, FrenchZip, HexColor, HttpsUrl).
+  Couverts par 45 tests purs.
+- [x] **Migration `20260512_145547_add_tenant_company_contact`** +
+  **`20260512_150457_add_tenant_branding`** : 100% additives (ADD COLUMN
+  nullable + CREATE TABLE phones/hours + CREATE TYPE legal_form/
+  border_radius/font_family). Backwards compat avse/demo/fgmc.
+- [x] **Script `seed-companyinfo-avse.ts`** : idempotent, peuple le tenant
+  AVSE avec SIRET 48535721400033, dirigeant Didier Bollard, adresse 19
+  Avenue Sidi Brahim 06130 Grasse, mobile +33 6 10 44 03 63, etc.
+  **Exécuté en prod 2026-05-12 19:00**.
+- [x] **5 tests `tenant-company-info.int.spec.ts`** : create complet OK,
+  refus SIRET 13 chiffres, refus tél court, refus CP 4 chiffres,
+  backwards compat tenant vide.
+
+#### Sprint 4 — PR #54 (legacy) `47abe0f` — Stats + FAQ blocks
+
+- [x] **`StatsBlock`** : grille 2-6 chiffres clés (value + label + hint).
+  Pour remplacer les hardcodés HomeView ("1500+", "20 ans", "7j/7").
+  Constraints : value maxLength 20, label maxLength 60, hint maxLength
+  100.
+- [x] **`FAQBlock`** : items[] (question + answer) + checkbox `jsonLd`
+  pour rich snippet Google FAQPage Schema.org.
+- [x] **Migration `20260512_154828_add_stats_and_faq_blocks`** : 4 CREATE
+  TABLE pour les arrays items + indices. 100% additif.
+- [x] **Validation prod** : POST /api/pages avec `blockType: 'stats'` +
+  `blockType: 'faq'` → page id=14 créée puis nettoyée.
+
+#### Sprint 5 — PR #55 (legacy) `3d3c58a` — Partners + features + editor
+
+- [x] **Collection `Partners`** : name, slug, city, dept, logo upload,
+  body markdown, partnershipYear, featured. Access read public.
+  Multi-tenant (plugin filtre auto). Remplace `partners.json` legacy.
+- [x] **`Tenants.features`** (json) : `{ products, partners, map,
+  testimonials, floatingCta, livePreview }`. Default DEFAULT sur ALTER
+  TABLE → tous les tenants existants ont la valeur d'office.
+  super-admin only (caché aux clients).
+- [x] **Rôle `editor`** : niveau intermédiaire entre client et
+  site-reader. Peut UPDATE mais pas CREATE/DELETE (cf
+  `cms/src/lib/access.ts` `canCreate` / `canDelete`).
+- [x] **Helpers d'access centralisés** : `isSuperAdmin`, `isClient`,
+  `isEditor`, `canRead`, `canUpdate`, `canCreate`, `canDelete`. Appliqués
+  sur Pages, Products, Partners.
+- [x] **Dashboard greeting personnalisé** : "Bonjour Didier 👋" (lit
+  `tenant.company.directorName` → user.name → fallback) + lien
+  "🔗 Voir mon site" vers `tenant.siteUrl`.
+- [x] **Migration `20260512_160636_add_partners_and_features`** : ALTER
+  TYPE enum_users_roles ADD VALUE 'editor', CREATE TABLE partners + 4
+  indices, ALTER TABLE tenants ADD COLUMN features jsonb DEFAULT. 100%
+  additif.
+- [x] **Script `seed-partners-avse.ts`** : idempotent, upsert par slug.
+  **Exécuté en prod 2026-05-12 18:35**, 47 partners AVSE migrés depuis
+  `partners.json` (Afflelou, Bessem Michelin, ESF Les Arcs, etc.).
+- [x] **4 tests `partners-collection.int.spec.ts`** : create OK, refus
+  sans name/body, refus create par user editor.
+
+#### Sprint 6 — PR #56 (legacy) `7edc754` — Script générique seed-tenant-data
+
+- [x] **`cms/scripts/seed-tenant-data.ts`** : un seul script qui prend
+  un `CONFIG=path.json` et seed en idempotent tous les groupes du tenant
+  (company, contact, branding, features) + partners[] (upsert par slug).
+  Tous les blocs optionnels (skip ce qui n'est pas dans le JSON).
+  FORCE=1 pour overwrite, sinon skip si SIRET déjà rempli.
+- [x] **`cms/scripts/tenant-config-avse.example.json`** : reproduit la
+  config AVSE actuelle. Sert de doc vivante du schema + template à
+  copier pour Morel/Tramtech/etc.
+- [x] **Validé en dry-run prod** : skip correct (idempotent) car tenant
+  AVSE déjà seedé via les scripts spécifiques Sprint 3 + 5.
+
+#### Résultat prod après Sprints 2 à 6 (état 2026-05-13)
+
+- **84 tests int verts** en 14s via `pnpm test:int:fresh`
+- **3 tenants prod** : avse (seedé complet), demo, fgmc
+- **47 partners AVSE** en collection `partners` (page /partenaires
+  débloquée pour le site AVSE quand l'agent côté site câblera la conso)
+- **Tenant AVSE complet** : SIRET, dirigeant, adresse, phones, hours,
+  branding default Veridian, features default
+- **6 nouveaux blocs** dispo dans Pages : Stats + FAQ ajoutés à Hero,
+  Services, Cards2, Cards4WithIcons, SplitImageText, QuoteCard, Gallery,
+  LogoWall, Testimonials, RichText, CTA, Form
+- **Scripts utilitaires** réutilisables pour /cms-provision : 1 commande
+  = 1 nouveau client provisionné en < 30 min
+
+#### Suite à intégrer
+
+- [ ] **Skill `/cms-provision`** : intégrer `seed-tenant-data.ts` dans le
+  flow de provisioning pour automatiser bout-en-bout (créer tenant →
+  seed depuis config JSON → user client + magic link → CF Pages).
+- [ ] **Côté site AVSE** (scope agent AVSE) : câbler conso
+  `tenant.company`/`contact`/`branding` (remplacer `sites/avse/src/lib/
+  site.ts` hardcodé) + page `/partenaires/[slug]` qui consomme
+  `/api/partners` + composants `StatsBlock.tsx` + `FAQBlock.tsx` côté
+  site qui rendent les nouveaux blocs.
+- [ ] **Bug UX résiduel** (non bloquant) : draft autosave affiche "Mis à
+  jour avec succès" en parallèle de "1 Erreur" UI quand un champ dépasse
+  maxLength. Améliorer dans un futur sprint via hook beforeValidate ou
+  meilleur feedback. Le site ne casse pas (publish bloqué).
 
 ### 🔵 Session 2026-05-12 (AM) — Tests int + Media public + UploadWithPreview (PR #38/#40/#41/#42)
 

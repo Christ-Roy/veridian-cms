@@ -1,0 +1,11 @@
+# VEX statements (Vulnerability EXploitability) — Trivy v0.58+
+# Toute exclusion CVE doit avoir une justification écrite + reviewer + date.
+# Pas de .trivyignore plat. Cf CI-ARCHITECTURE.md §5.
+
+# Exemple :
+# - id: CVE-2024-12345
+#   statement: not_affected
+#   justification: vulnerable_code_not_in_execute_path
+#   impact: Le parser XML vulnérable est importé par lib X mais jamais appelé.
+#   reviewed_by: robert.brunon@veridian.site
+#   reviewed_at: 2026-05-17
