@@ -99,43 +99,8 @@ jobs:
 
   # Trivy FS multi-scan étage 1 (vuln + misconfig + secret + license)
   trivy-fs:
-    name: Trivy FS (vuln + misconfig + secret + license)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Trivy FS scan (SARIF)
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln,misconfig,secret,license'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          format: 'sarif'
-          output: 'trivy-fs.sarif'
-          # Pas exit-code=1 ici : on uploade le SARIF d'abord, le bloquant est sur trivy-fs-blocking
-          exit-code: '0'
-          timeout: '10m'
-
-      - name: Upload SARIF to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-fs.sarif'
-          category: 'trivy-fs'
-
-      - name: Trivy FS blocking gate
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          scanners: 'vuln,misconfig,secret'
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          format: 'table'
-          exit-code: '1'
-          timeout: '10m'
+    name: Trivy FS
+    uses: ./.github/workflows/_trivy-fs.yml
 
   # Gitleaks (secrets dans diff git, complète Trivy secret scan)
   gitleaks:
@@ -257,66 +222,15 @@ jobs:
               -f ./Dockerfile \
               .
 
-  # Trivy image scan + EOL + SBOM (capacités 5, 6, 7 du standard)
+  # Trivy image scan (capacité 5 + SARIF 8)
   trivy-image:
-    name: Trivy image scan + EOL + SBOM
+    name: Trivy image
     needs: docker
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Trivy image scan (SARIF)
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          format: 'sarif'
-          output: 'trivy-image.sarif'
-          exit-code: '0'
-          timeout: '10m'
-
-      - name: Upload SARIF to GitHub Security tab
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-image.sarif'
-          category: 'trivy-image'
-
-      - name: Trivy image blocking gate (CRIT+HIGH)
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
-          severity: 'CRITICAL,HIGH'
-          ignore-unfixed: true
-          format: 'table'
-          exit-code: '1'
-          timeout: '10m'
-
-      - name: Trivy EOL distro check
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
-          format: 'table'
-          # --exit-on-eol pas exposé par l'action ; on simule via scan
-          # OS, table affichée pour audit visuel. À durcir via trivy CLI direct.
-          scanners: 'vuln'
-          severity: 'UNKNOWN'
-          exit-code: '0'
-
-      - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@0.36.0
-        with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.docker.outputs.version }}
-          format: 'cyclonedx'
-          output: 'sbom.cdx.json'
-
-      - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom-cyclonedx-${{ needs.docker.outputs.version }}
-          path: 'sbom.cdx.json'
-          retention-days: 90
+    uses: ./.github/workflows/_trivy-image.yml
+    with:
+      image-ref: ghcr.io/christ-roy/veridian-cms:latest
+      severity: 'CRITICAL,HIGH'
+      ignore-unfixed: true
 
   # ────────────────────────────────────────────────────────────────────────
   # ÉTAGE 3 — Deploy prod via webhook Dokploy
