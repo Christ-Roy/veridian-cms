@@ -2,10 +2,18 @@
 # Toute exclusion CVE doit avoir une justification écrite + reviewer + date.
 # Pas de .trivyignore plat. Cf CI-ARCHITECTURE.md §5.
 
-# Exemple :
-# - id: CVE-2024-12345
-#   statement: not_affected
-#   justification: vulnerable_code_not_in_execute_path
-#   impact: Le parser XML vulnérable est importé par lib X mais jamais appelé.
-#   reviewed_by: robert.brunon@veridian.site
-#   reviewed_at: 2026-05-17
+vulnerabilities:
+  - id: CVE-2026-33671
+    statement: not_affected
+    justification: vulnerable_code_not_in_execute_path
+    impact: |
+      Le finding pointe sur picomatch@4.0.3 embarqué dans
+      /usr/local/lib/node_modules/npm/node_modules/picomatch/ —
+      la copie de picomatch que npm utilise en interne dans l'image
+      node:alpine. Notre runtime applicatif est sur next.js standalone
+      (server.js) sans npm chargé. picomatch est ReDoS via patterns
+      glob, on n'expose aucune surface qui consomme un input
+      utilisateur via npm. Côté app, override pnpm picomatch>=4.0.4
+      garantit 4.0.4 partout.
+    reviewed_by: robert.brunon@veridian.site
+    reviewed_at: 2026-05-17
