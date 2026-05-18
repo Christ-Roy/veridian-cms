@@ -83,6 +83,38 @@ seed-from-code provisionne le CMS avec exactement ces blocs.
 
 ## Backlog priorise
 
+### 🟢 Session 2026-05-18 (AM) — Refermage cycle trunk-based
+
+- [x] **`scripts/ci/check-structural-changes.sh`** (porté depuis veridian-hub)
+  - Détecte diff Dockerfile, src/payload.config.ts, src/migrations/**, compose/**,
+    docker-compose.yml, package.json, pnpm-lock.yaml.
+  - Set GITHUB_OUTPUT `has-structural=true|false`.
+- [x] **`scripts/ci/check-staging-fresh.sh`** (porté depuis veridian-hub avec fix while-subshell)
+  - Exige un run cms-staging.yml vert ≤24h sur un ancêtre de HEAD.
+  - Bloque deploy-prod si fichier structurel modifié sans staging récent.
+- [x] **`ci.yml` : job `structural-gate`** (added)
+  - Tourne sur push main + workflow_dispatch.
+  - `docker` job dépend désormais de `structural-gate`.
+- [x] **`cms-staging.yml` : job `promote-to-main`** (added)
+  - ff-merge staging → main après staging deploy + smoke vert.
+  - Trigger `ci.yml` sur main via `gh workflow run` (anti-loop GITHUB_TOKEN).
+  - Permissions `contents: write` + `actions: write`.
+  - Notification Telegram.
+- [x] **Branch protection main** : `required_status_checks` et `required_linear_history`
+  désactivés (le gate staging est la source de vérité). `allow_force_pushes: false`,
+  `allow_deletions: false` conservés.
+- [x] **Validation end-to-end** : run 26020255269 — push staging → deploy staging vert
+  → auto-promote main → trigger ci.yml → structural-gate vert → docker → trivy →
+  deploy-prod vert. Prod `https://cms.veridian.site/api/health` retourne `{"status":"ok","tenants":3}`.
+
+**Mode trunk-based opérationnel** : plus de PR, plus de branche feature.
+Workflow standard désormais :
+1. `git checkout staging && git pull --ff-only origin staging`
+2. code + commit + `git push origin staging`
+3. CI staging tourne automatiquement → auto-promote → CI prod → deploy
+4. Surveiller smoke prod. Si fail, `emergency-rollback.yml` se déclenche via
+   `repository_dispatch event-type=rollback_triggered`.
+
 ### 🟢 Session 2026-05-13 (soir) — Extraction polyrepo + Dokploy GitOps
 
 - [x] **Extraction monorepo → repo standalone `Christ-Roy/veridian-cms`**
