@@ -76,6 +76,12 @@ EXPOSE 3000
 
 ENV PORT 3000
 
+# Healthcheck : Docker/Dokploy doivent pouvoir évaluer la santé du container.
+# /api/health retourne {"status":"ok"} quand Payload + DB répondent.
+# start-period 60s laisse le temps au boot Next + connexion Postgres.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- --tries=1 --timeout=3 http://127.0.0.1:3000/api/health | grep -q '"status":"ok"' || exit 1
+
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
 CMD HOSTNAME="0.0.0.0" node server.js
