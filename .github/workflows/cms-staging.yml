@@ -238,6 +238,16 @@ jobs:
           git push origin main
           echo "✓ main avancé vers $STAGING_SHA (auto-promote)"
 
+      # GitHub n'enchaîne PAS automatiquement les workflows quand le push est
+      # effectué par GITHUB_TOKEN (sécurité anti-loop). On déclenche ci.yml
+      # explicitement via workflow_dispatch pour que l'étage 3 prod tourne.
+      - name: Trigger ci.yml on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ci.yml --ref main --repo ${{ github.repository }}
+          echo "✓ ci.yml déclenché sur main"
+
       - name: Telegram notify
         if: always()
         env:
