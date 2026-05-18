@@ -115,6 +115,32 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # Path-based staging gate : si push main touche fichiers structurels
+  # (Dockerfile, src/payload.config.ts, src/migrations/**, compose/**,
+  # docker-compose.yml, package.json, pnpm-lock.yaml) → exige un run staging
+  # vert dans les 24h sur un ancêtre de HEAD.
+  # Sur PR : on détecte mais on ne bloque pas (PR n'a pas accès à staging).
+  structural-gate:
+    name: Structural change gate (staging fresh)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      has-structural: ${{ steps.detect.outputs.has-structural }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 50
+      - name: Detect structural changes
+        id: detect
+        run: ./scripts/ci/check-structural-changes.sh || true
+        env:
+          BASE_REF: HEAD~1
+      - name: Require staging fresh
+        if: steps.detect.outputs.has-structural == 'true'
+        run: ./scripts/ci/check-staging-fresh.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # ────────────────────────────────────────────────────────────────────────
   # ÉTAGE 1 (bis) — Integration tests (Postgres réel)
   # ────────────────────────────────────────────────────────────────────────
@@ -163,7 +189,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   docker:
     name: Build & push image
-    needs: [static, audit, int, trivy-fs, gitleaks]
+    needs: [static, audit, int, trivy-fs, gitleaks, structural-gate]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:

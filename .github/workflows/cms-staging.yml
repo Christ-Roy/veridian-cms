@@ -29,7 +29,7 @@ env:
   STAGING_URL: https://cms.staging.veridian.site
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -193,3 +193,62 @@ jobs:
         if: always()
         run: |
           rm -f ~/.ssh/staging_key
+
+  # Auto-promotion staging → main (trunk-based, cf CLAUDE.md racine §Règle d'or).
+  # Déclenchée seulement si le job `deploy` est vert (staging healthy + smoke OK).
+  # ff-merge uniquement (pas de merge commit, pas de force-push). Si non-ff (ex:
+  # main a divergé), le job échoue et il faut investiguer manuellement.
+  promote-to-main:
+    name: Auto-promote staging → main
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: |
+      github.ref == 'refs/heads/staging' &&
+      github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # PAT si dispo (bypass branch protection requiring status checks),
+          # fallback GITHUB_TOKEN (suffit si pas de protection ou si checks
+          # configurés en "auto-merge" mode).
+          token: ${{ secrets.AUTO_PROMOTE_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fast-forward main to staging
+        env:
+          STAGING_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main staging
+          git checkout main
+          # ff-only : si main a divergé de staging, le push échouera et il faut
+          # rebaser staging sur main avant relance.
+          if ! git merge --ff-only "$STAGING_SHA"; then
+            echo "::error::main a divergé de staging — auto-promotion impossible."
+            echo "Corriger : git checkout staging && git merge --ff-only origin/main && git push origin staging"
+            exit 1
+          fi
+          git push origin main
+          echo "✓ main avancé vers $STAGING_SHA (auto-promote)"
+
+      - name: Telegram notify
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
+          STATUS="${{ job.status }}"
+          ICON="✓"; [ "$STATUS" != "success" ] && ICON="✗"
+          SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=$ICON CMS auto-promote staging→main $STATUS (${SHA7})" \
+            >/dev/null || true
