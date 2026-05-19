@@ -175,9 +175,19 @@ jobs:
             "docker logs cms-staging --tail 200" || true
           exit 1
 
+      # Staging accessible uniquement via tailnet Veridian (2026-05-19).
+      # Cf veridian-hub/docs/CONTRAT-HUB.md §8.6.
+      - name: Tailscale (connect runner to tailnet for staging smoke)
+        uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-github
+          version: latest
+
       - name: Smoke test staging URL
         run: |
-          echo "Smoke: ${{ env.STAGING_URL }}/api/health"
+          echo "Smoke: ${{ env.STAGING_URL }}/api/health (via Tailscale)"
           for i in $(seq 1 12); do
             if curl -sf --max-time 10 "${{ env.STAGING_URL }}/api/health" | grep -q '"status":"ok"'; then
               echo "✓ Staging healthy: ${{ env.STAGING_URL }}"
