@@ -1,9 +1,9 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-05-21 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-05-21
-> **CVE bruts détectés** : 12 (avant filtrage)
+> **Dernier run** : 2026-05-22 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-05-22
+> **CVE bruts détectés** : 14 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
@@ -11,7 +11,7 @@
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
 - 🟡 **1 MEDIUM** — récap, pas urgent
-- 🟢 **11 NOISE** — annexe collapse
+- 🟢 **12 NOISE** — annexe collapse
 
 ✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
@@ -32,15 +32,16 @@
 
 ---
 
-## 🟢 NOISE filtré (11 CVE)
+## 🟢 NOISE filtré (12 CVE)
 
 <details>
-<summary>Liste complète (4 groupes — clique pour déplier)</summary>
+<summary>Liste complète (5 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
 | `dompurify` | 3.2.7 | 3.4.0 | 8 | 4 |
 | `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
+| `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
 | `esbuild` | 0.18.20 | 0.25.0 | 1 | 2 |
 | `ws` | 8.20.0 | 8.20.1 | 1 | 2 |
 
