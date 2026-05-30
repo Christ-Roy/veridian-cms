@@ -28,11 +28,9 @@
  */
 import path from 'path'
 import fs from 'fs/promises'
-import { fileURLToPath } from 'url'
 import { getPayload } from 'payload'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
+import type { Where } from 'payload'
+import config from '../src/payload.config'
 
 // Le volume médias est monté sur /app/media en runtime (cf docker-compose.yml).
 // En dev local sans Docker : chemin via env STATIC_DIR.
@@ -56,11 +54,9 @@ function parseArgs(): Args {
 
 async function main() {
   const args = parseArgs()
-  // Import dynamique de la config pour respecter le pattern Payload v3
-  const config = (await import('../src/payload.config.ts')).default
   const payload = await getPayload({ config: await config })
 
-  const where: Record<string, unknown> = {}
+  const where: Where = {}
   if (args.tenant) where.tenant = { equals: args.tenant }
 
   payload.logger.info(
