@@ -20,4 +20,30 @@
 # Renovate et agents auto ne peuvent pas ajouter de couverture sans toucher
 # ce fichier. Reviewable comme du code.
 
-# Aucune couverture non-canonique déclarée pour le moment.
+- sources:
+    - src/components/BrandPicker/index.tsx
+  covered_by:
+    - tests/int/products-guard-rails.int.spec.ts
+  reason: |
+    BrandPicker est un composant UI client (Payload useField) dont la logique
+    métier (normalize Title Case, alignement casse existante, persistance)
+    est entièrement côté serveur dans le hook `brand.beforeChange` de
+    Products.ts. Les tests int 3.1, 3.2, 3.3, 4.1 exercent exactement ces
+    chemins via payload.create avec différentes casses. Tester le rendu React
+    en vitest+jsdom demanderait de mocker tout l'écosystème @payloadcms/ui
+    (useField, FieldProvider, FormContext) pour zéro signal supplémentaire :
+    la régression métier est attrapée par les tests int existants.
+
+- sources:
+    - src/components/ProductPreview/index.tsx
+  covered_by:
+    - tests/int/products-guard-rails.int.spec.ts
+  reason: |
+    ProductPreview est un composant d'affichage pur : il lit les valeurs du
+    form via useFormFields et rend une card visuelle (HTML + styles inline).
+    Aucune logique métier (pas de mutation, pas de validation, pas d'API
+    autre que fetch /api/media/:id pour l'URL de l'image). Une régression
+    visuelle ne casserait rien fonctionnellement — le produit serait quand
+    même sauvegardé correctement. Les guard-rails Products.ts (validate,
+    slug, brand normalize) sont la vraie source de bugs métier, déjà
+    couverts par products-guard-rails.int.spec.ts.

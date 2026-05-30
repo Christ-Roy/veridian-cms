@@ -954,13 +954,10 @@ export interface Product {
    * Ex : Verifone Victa VP100, Caisse Aures TRX3000…
    */
   name: string;
-  /**
-   * Ex : verifone-victa-vp100. Utilisé dans l'URL et pour pré-remplir le formulaire de contact.
-   */
-  slug: string;
+  slug?: string | null;
   category: 'tpe' | 'caisses' | 'peripheriques' | 'accessoires' | 'fournitures' | 'forfaits' | 'location';
   /**
-   * Ex : Verifone, Ingenico, Pax, Aures, Sunmi, U Pos, Perimatic, Kortex, CSI…
+   * Tapez une marque existante (autocomplete) ou ajoutez-en une nouvelle — elle sera mémorisée.
    */
   brand?: string | null;
   /**
