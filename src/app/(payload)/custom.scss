@@ -123,6 +123,46 @@ $neutral-900: $foreground;
 }
 
 /* ========================================
+   Thumbnails Payload natives — jamais de crop (object-fit: contain)
+   ========================================
+   Payload v3 utilise `object-fit: cover` par défaut sur ses thumbnails
+   internes : list view, upload-relationship-details, drawer Media,
+   sélecteur d'image. Pour des produits TPE/accessoires (image souvent
+   paysage 300×158), ça coupe le bas et les côtés.
+
+   On force `contain` + centrage partout. Le léger padding évite que
+   l'image touche les bords du container quand elle est en format extrême. */
+.thumbnail,
+.thumbnail img,
+.thumbnail--size-small,
+.thumbnail--size-small img,
+.thumbnail--size-medium,
+.thumbnail--size-medium img,
+.thumbnail--size-large,
+.thumbnail--size-large img,
+.thumbnail--size-expand,
+.thumbnail--size-expand img {
+  object-fit: contain !important;
+  background: var(--theme-elevation-50);
+}
+
+/* Container thumbnail = aligner l'image au centre (au cas où image plus
+   petite que le container). */
+.thumbnail {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Card thumbnails (drawer Media — sélecteur visuel) — même règle */
+.card__media img,
+.card__thumbnail img,
+[class*='upload__'] img,
+[class*='thumbnail__'] img {
+  object-fit: contain !important;
+}
+
+/* ========================================
    Inputs / textareas / selects — focus en vert Veridian
    ========================================
    Donne le côté "vivant" Brevo/Supabase : les inputs sont gris au repos,
@@ -301,6 +341,30 @@ button[aria-pressed='true'][class*='preview-frame'] {
   flex-direction: column;
   gap: 10px;
 
+  /* Lien Tableau de bord — premier item nav, sous la carte profil.
+     Hérite déjà des styles .nav__link de base. On ajoute juste le marker
+     d'état actif qui reproduit le pattern de la barre verticale menthe à
+     gauche (cf .nav .nav__link:has(.nav__link-indicator) plus haut). */
+  &__dashboard-link {
+    /* Reset les margins de .nav__link pour s'aligner sous la carte profil */
+    margin: 4px 0 0 !important;
+
+    &--active {
+      background: $veridian-mint-soft !important;
+      color: $veridian-dark !important;
+      position: relative;
+
+      .nav__link-label {
+        color: $veridian-dark !important;
+        font-weight: 600;
+      }
+
+      .nav__link-icon {
+        color: $veridian-dark;
+      }
+    }
+  }
+
   &__eyebrow {
     display: flex;
     flex-direction: column;
@@ -435,14 +499,41 @@ button[aria-pressed='true'][class*='preview-frame'] {
 
 /* ========================================
    Bouton primaire — en menthe Veridian
-   ======================================== */
+   ========================================
+   État actif : vert Veridian foncé sur menthe (texte clair).
+   État disabled : Payload v3 ajoute la classe `btn--disabled` quand le form
+   n'a rien à publier (= pas dirty). Sans override, le texte natif Payload
+   reste foncé sur notre background vert foncé → illisible. On force un état
+   désaturé clair + texte sombre clairement "grisé". */
 .btn--style-primary {
   background: $veridian-dark;
   border-color: $veridian-dark;
+  color: $veridian-mint;
 
-  &:hover:not(:disabled) {
+  &:hover:not(:disabled):not(.btn--disabled) {
     background: darken($veridian-dark, 4%);
     border-color: darken($veridian-dark, 4%);
+    color: $veridian-mint;
+  }
+
+  /* Disabled (= rien à publier, ou save en cours) :
+     fond gris très clair, texte gris moyen, curseur not-allowed.
+     Signal visuel net "y'a rien à push". */
+  &:disabled,
+  &.btn--disabled,
+  &[aria-disabled='true'] {
+    background: $neutral-100 !important;
+    border-color: $neutral-200 !important;
+    color: $neutral-500 !important;
+    cursor: not-allowed !important;
+    opacity: 1; // override l'opacity: 0.5 que Payload met par défaut
+    box-shadow: none !important;
+
+    &:hover {
+      background: $neutral-100 !important;
+      border-color: $neutral-200 !important;
+      color: $neutral-500 !important;
+    }
   }
 }
 
@@ -1070,14 +1161,19 @@ body.preview-maximized {
     border: 1px solid var(--theme-elevation-150);
     border-radius: 4px;
     overflow: hidden;
-    display: block;
+    display: flex;            // centrage image entière
+    align-items: center;
+    justify-content: center;
+    padding: 6px;             // air autour pour les formats paysage/portrait
     background: var(--theme-elevation-50);
     transition: border-color 120ms ease;
 
     img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: auto;
+      object-fit: contain;    // jamais de crop — produits TPE/accessoires souvent paysages
       display: block;
     }
 

@@ -1,21 +1,7 @@
-import type { CollectionBeforeValidateHook, CollectionConfig } from 'payload'
-import { APIError } from 'payload'
+import type { CollectionConfig } from 'payload'
 import { canCreate, canDelete, canRead, canUpdate } from '../lib/access'
 import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
 import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
-
-// Payload's `required: true` on `name` does not catch whitespace-only values —
-// `payload.create({ data: { name: '   ' } })` succeeds without this hook. We
-// only guard `name` here because the field-level `slug.beforeValidate` (below)
-// auto-generates the slug from `name` whenever slug is empty, making any
-// top-level slug guard unreachable in practice.
-const rejectEmptyName: CollectionBeforeValidateHook = ({ data }) => {
-  const name = (data as { name?: string | null })?.name
-  if (!name || !name.trim()) {
-    throw new APIError('Le nom du produit est obligatoire.', 400)
-  }
-  return data
-}
 
 /**
  * Catalogue produits multi-tenant.
@@ -50,14 +36,14 @@ export const Products: CollectionConfig = {
     delete: canDelete, // super-admin + client (PAS editor)
   },
   versions: {
-    drafts: {
-      autosave: { interval: 2000 },
-    },
+    // Drafts manuels : pas d'autosave, le client clique explicitement "Publier"
+    // pour activer le produit (cf demande Robert/Didier 2026-05-30). Tant que
+    // _status = 'draft', le site public ne le sert pas (filtré côté front).
+    drafts: true,
     maxPerDoc: 10,
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
-    beforeValidate: [rejectEmptyName],
   },
   fields: [
     {
@@ -66,27 +52,39 @@ export const Products: CollectionConfig = {
       required: true,
       label: 'Nom du produit',
       admin: { description: 'Ex : Verifone Victa VP100, Caisse Aures TRX3000…' },
+      validate: (value: unknown) => {
+        if (typeof value !== 'string' || !value.trim()) {
+          return 'Le nom du produit est obligatoire.'
+        }
+        return true
+      },
     },
     {
       name: 'slug',
       type: 'text',
-      required: true,
       label: 'Identifiant URL',
-      admin: { description: 'Ex : verifone-victa-vp100. Utilisé dans l\'URL et pour pré-remplir le formulaire de contact.' },
+      admin: {
+        // Caché du form admin — auto-généré côté serveur depuis `name`.
+        // Le client n'a pas à se soucier de l'URL.
+        hidden: true,
+      },
       hooks: {
-        // Auto-slug depuis le nom si vide
-        beforeValidate: [
+        beforeChange: [
           ({ value, data }) => {
-            if (value && typeof value === 'string' && value.trim()) return value
+            // Toujours régénérer depuis le name pour garantir cohérence.
+            // (Si on garde la valeur user, le slug peut diverger du nom après
+            // un rename → on force la régénération.)
             const name = (data as { name?: string })?.name
-            if (!name) return value
-            return name
-              .toLowerCase()
-              .normalize('NFD')
-              .replace(/[̀-ͯ]/g, '')
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/^-|-$/g, '')
-              .slice(0, 80)
+            if (typeof name === 'string' && name.trim()) {
+              return name
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[̀-ͯ]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '')
+                .slice(0, 80)
+            }
+            return value
           },
         ],
       },
@@ -112,7 +110,50 @@ export const Products: CollectionConfig = {
       type: 'text',
       label: 'Marque',
       admin: {
-        description: 'Ex : Verifone, Ingenico, Pax, Aures, Sunmi, U Pos, Perimatic, Kortex, CSI…',
+        description: 'Tapez une marque existante (autocomplete) ou ajoutez-en une nouvelle — elle sera mémorisée.',
+        components: {
+          Field: '/components/BrandPicker/index.tsx#BrandPicker',
+        },
+      },
+      hooks: {
+        // Normalise la marque au save pour éviter les doublons par casse :
+        // "INGENICO" / "Ingenico" / "ingenico" → "Ingenico" (Title Case).
+        // Si une variante existe déjà dans la collection, on s'aligne dessus.
+        beforeChange: [
+          async ({ value, req, operation, originalDoc }) => {
+            if (typeof value !== 'string') return value
+            const trimmed = value.trim()
+            if (!trimmed) return null
+
+            // Title Case basique : première lettre maj, reste minuscule.
+            const titleCased = trimmed
+              .split(/\s+/)
+              .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+              .join(' ')
+
+            // Cherche si une variante (case-insensitive) existe déjà — on aligne dessus
+            // pour ne pas créer "Ingenico" + "ingenico" + "INGENICO".
+            try {
+              const existing = await req.payload.find({
+                collection: 'products',
+                where: {
+                  brand: { like: trimmed },
+                  ...(operation === 'update' && originalDoc?.id ? { id: { not_equals: originalDoc.id } } : {}),
+                },
+                limit: 1,
+                depth: 0,
+                req,
+              })
+              const match = (existing.docs[0] as { brand?: string } | undefined)?.brand
+              if (match && match.toLowerCase() === trimmed.toLowerCase()) {
+                return match // s'aligne sur la casse existante
+              }
+            } catch {
+              // best-effort, on tombe sur Title Case
+            }
+            return titleCased
+          },
+        ],
       },
     },
     {
@@ -162,6 +203,17 @@ export const Products: CollectionConfig = {
       fields: [
         { name: 'text', type: 'text', required: true, label: 'Texte' },
       ],
+    },
+    {
+      name: '_preview',
+      type: 'ui',
+      label: 'Aperçu',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: '/components/ProductPreview/index.tsx#ProductPreview',
+        },
+      },
     },
     {
       name: 'order',

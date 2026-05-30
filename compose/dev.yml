@@ -37,6 +37,9 @@ services:
       # Polling obligatoire : rsync recrée les inodes, inotify natif rate les events
       WATCHPACK_POLLING: "true"
       CHOKIDAR_USEPOLLING: "true"
+      # Next + Payload + Turbopack en dev = gourmands en RAM.
+      # Le défaut 512m fait OOM toutes les ~10 min sur un projet de cette taille.
+      NODE_OPTIONS: "--max-old-space-size=2560"
       DATABASE_URL: postgresql://cms:${POSTGRES_PASSWORD}@cms-dev-db:5432/veridian_cms_dev
       PAYLOAD_SECRET: ${PAYLOAD_SECRET}
       SERVER_URL: https://cms.dev.veridian.site

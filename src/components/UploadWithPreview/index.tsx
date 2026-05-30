@@ -35,7 +35,12 @@ type MediaDoc = {
 
 function pickPreviewUrl(doc: MediaDoc | null): string | null {
   if (!doc) return null
-  return doc.sizes?.thumbnail?.url || doc.sizes?.card?.url || doc.url || null
+  // ATTENTION : les `sizes` (thumbnail/card) sont des CROP physiques générés
+  // par Sharp à l'upload (cf Media.ts:167-171 — width+height fixes). Pour des
+  // images paysage (produits TPE, alimentations), elles sont coupées en dur.
+  // On préfère doc.url qui est l'original jamais transformé. Fallback sizes
+  // seulement si url manque (cas edge legacy).
+  return doc.url || doc.sizes?.card?.url || doc.sizes?.thumbnail?.url || null
 }
 
 // Tolerate both `value = 12` and `value = { id: 12, ... }` (Payload depth>=1).

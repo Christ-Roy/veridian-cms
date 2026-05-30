@@ -55,6 +55,12 @@ export default buildConfig({
       fr: {
         general: {
           dashboard: 'Tableau de bord',
+          // Override des bot-générés "Créer un(e) nouveau ou nouvelle X" ridicules
+          // (cf @payloadcms/translations/fr.js:263-264). On force masculin —
+          // toutes nos collections client sont au masculin (Produit, Média,
+          // Partenaire, Client, Utilisateur). "Créer un Page" reste OK aussi.
+          createNew: 'Créer',
+          createNewLabel: 'Créer : {{label}}',
         },
       },
     },

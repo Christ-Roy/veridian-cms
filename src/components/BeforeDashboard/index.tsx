@@ -75,7 +75,8 @@ const BeforeDashboard = async ({ payload, user }: ServerProps) => {
   const [
     pagesPublished,
     pagesDraft,
-    products,
+    productsActive,
+    productsInactive,
     media,
     forms,
     submissions,
@@ -84,7 +85,12 @@ const BeforeDashboard = async ({ payload, user }: ServerProps) => {
   ] = await Promise.all([
     payload.count({ collection: 'pages', where: { ...tenantWhere, _status: { equals: 'published' } } }),
     payload.count({ collection: 'pages', where: { ...tenantWhere, _status: { equals: 'draft' } } }),
-    payload.count({ collection: 'products', where: tenantWhere }).catch(() => ({ totalDocs: 0 })),
+    payload
+      .count({ collection: 'products', where: { ...tenantWhere, _status: { equals: 'published' } } })
+      .catch(() => ({ totalDocs: 0 })),
+    payload
+      .count({ collection: 'products', where: { ...tenantWhere, _status: { equals: 'draft' } } })
+      .catch(() => ({ totalDocs: 0 })),
     payload.count({ collection: 'media', where: tenantWhere }).catch(() => ({ totalDocs: 0 })),
     payload.count({ collection: 'forms', where: tenantWhere }).catch(() => ({ totalDocs: 0 })),
     payload.count({ collection: 'form-submissions', where: tenantWhere }).catch(() => ({ totalDocs: 0 })),
@@ -111,10 +117,18 @@ const BeforeDashboard = async ({ payload, user }: ServerProps) => {
       icon: <IconPages />,
     },
     {
-      href: '/admin/collections/products',
-      label: 'Produits au catalogue',
-      value: products.totalDocs,
-      hint: products.totalDocs === 0 ? 'Vide' : 'Visibles sur le site',
+      href: '/admin/collections/products?where[_status][equals]=published',
+      label: 'Produits actifs',
+      value: productsActive.totalDocs,
+      hint: productsActive.totalDocs === 0 ? 'Aucun produit publié' : 'Visibles sur le site',
+      accent: true,
+      icon: <IconBox />,
+    },
+    {
+      href: '/admin/collections/products?where[_status][equals]=draft',
+      label: 'Produits inactifs',
+      value: productsInactive.totalDocs,
+      hint: productsInactive.totalDocs === 0 ? 'Aucun brouillon' : 'Brouillons non publiés',
       icon: <IconBox />,
     },
     {
