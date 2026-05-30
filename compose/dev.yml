@@ -1,0 +1,102 @@
+# ============================================================================
+# compose/dev.yml — Env de dev hot reload sur dev-pub (cms.dev.veridian.site)
+# ============================================================================
+#
+# Stack séparée du staging (cms.staging.veridian.site) pour itérer sur l'UI
+# avec hot reload Next + DB clonée de prod. Robert/agent lance manuellement.
+#
+# Usage (sur dev-pub, après rsync repo + restore DB) :
+#   docker compose -p cms-dev \
+#     -f /home/staging-deploy/veridian-cms-src/cms/compose/dev.yml \
+#     --env-file /opt/staging/cms-dev/.env up -d
+#
+# Variables d'env requises (/opt/staging/cms-dev/.env) :
+#   PAYLOAD_SECRET     — 64 hex chars (openssl rand -hex 32)
+#   POSTGRES_PASSWORD  — 32+ chars
+# ============================================================================
+
+name: cms-dev
+
+services:
+  cms-dev:
+    image: node:22-alpine
+    container_name: cms-dev
+    working_dir: /app
+    # corepack + pnpm i (idempotent grâce au volume node_modules) + importmap + dev
+    command: >-
+      sh -c "apk add --no-cache libc6-compat &&
+             corepack enable pnpm &&
+             corepack prepare pnpm@10.33.0 --activate &&
+             pnpm i --frozen-lockfile &&
+             pnpm payload generate:importmap &&
+             pnpm dev"
+    environment:
+      NODE_ENV: development
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+      # Polling obligatoire : rsync recrée les inodes, inotify natif rate les events
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      DATABASE_URL: postgresql://cms:${POSTGRES_PASSWORD}@cms-dev-db:5432/veridian_cms_dev
+      PAYLOAD_SECRET: ${PAYLOAD_SECRET}
+      SERVER_URL: https://cms.dev.veridian.site
+      CORS_ORIGINS: https://cms.dev.veridian.site,https://avse-monetique.veridian.site
+      CSRF_ORIGINS: https://cms.dev.veridian.site,https://avse-monetique.veridian.site
+      AUTH_COOKIE_DOMAIN: .veridian.site
+      AUTH_COOKIE_SAMESITE: None
+      AUTH_COOKIE_SECURE: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - /home/staging-deploy/veridian-cms-src/cms:/app:cached
+      - cms-dev-node-modules:/app/node_modules
+      - cms-dev-next:/app/.next
+      - cms-dev-media:/app/media
+    depends_on:
+      cms-dev-db:
+        condition: service_healthy
+    networks:
+      - staging-edge
+      - cms-dev-internal
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=staging-edge
+      - traefik.http.routers.cms-dev.rule=Host(`cms.dev.veridian.site`)
+      - traefik.http.routers.cms-dev.entrypoints=websecure
+      - traefik.http.routers.cms-dev.tls=true
+      - traefik.http.routers.cms-dev.tls.certresolver=letsencrypt
+      - traefik.http.services.cms-dev.loadbalancer.server.port=3000
+
+  cms-dev-db:
+    image: postgres:16-alpine
+    container_name: cms-dev-db
+    environment:
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: veridian_cms_dev
+    volumes:
+      - cms-dev-pgdata:/var/lib/postgresql/data
+    networks:
+      - cms-dev-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cms -d veridian_cms_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  staging-edge:
+    external: true
+  cms-dev-internal:
+    driver: bridge
+
+volumes:
+  cms-dev-pgdata:
+    name: cms-dev-pgdata
+  cms-dev-media:
+    name: cms-dev-media
+  cms-dev-node-modules:
+    name: cms-dev-node-modules
+  cms-dev-next:
+    name: cms-dev-next

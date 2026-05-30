@@ -24,11 +24,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOCAL_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"   # cms/
 REMOTE_HOST="${REMOTE_HOST:-dev-pub}"
-REMOTE_DIR="${REMOTE_DIR:-/home/ubuntu/veridian-cms-src/cms}"
+REMOTE_DIR="${REMOTE_DIR:-/home/staging-deploy/veridian-cms-src/cms}"
 
 RSYNC_OPTS=(
   -az
   --delete
+  # /home/staging-deploy est root-only en exec — on passe par sudo côté remote.
+  # (Passwordless sudo configuré sur dev-pub pour le user SSH brunon5.)
+  --rsync-path="sudo rsync"
+  --chown=staging-deploy:staging-deploy
   --exclude 'node_modules/'
   --exclude '.next/'
   --exclude 'test-results/'
