@@ -1,33 +1,57 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-06-18 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-06-18
-> **CVE bruts détectés** : 21 (avant filtrage)
+> **Dernier run** : 2026-06-19 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-06-19
+> **CVE bruts détectés** : 25 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **0 MEDIUM** — récap, pas urgent
-- 🟢 **20 NOISE** — annexe collapse
+- 🟡 **2 MEDIUM** — récap, pas urgent
+- 🟢 **22 NOISE** — annexe collapse
 
-✅ **Aucune action requise.** Rapport régénéré quotidiennement.
+✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟢 NOISE filtré (20 CVE)
+## 🟡 MEDIUM — 2 CVE en 2 groupes
+
+### 1. `undici` — 7.24.4 → **8.5.0**
+
+- **CVE** : `CVE-2026-9697` (HIGH/RCE)
+- **Type** : RCE
+- **Score max** : 25
+- **Title** : undici: undici: Man-in-the-Middle attack via ignored TLS options with SOCKS5 proxy
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up undici` (jusqu'à >= `8.5.0`)
+
+### 2. `nodemailer` — 8.0.6 → **9.0.1**
+
+- **CVE** : `GHSA-p6gq-j5cr-w38f` (HIGH/SSRF)
+- **Type** : SSRF
+- **Score max** : 15
+- **Title** : Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up nodemailer` (jusqu'à >= `9.0.1`)
+
+
+---
+
+## 🟢 NOISE filtré (22 CVE)
 
 <details>
-<summary>Liste complète (6 groupes — clique pour déplier)</summary>
+<summary>Liste complète (7 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
 | `ws` | 8.20.0 | 8.21.0 | 2 | 5 |
-| `dompurify` | 3.2.7 | 3.4.7 | 12 | 4 |
+| `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
 | `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
+| `undici` | 7.24.4 | 8.5.0 | 1 | 4 |
 | `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
 | `js-yaml` | 4.1.1 | 4.2.0 | 1 | 2 |
 | `nodemailer` | 8.0.6 | 8.0.9 | 3 | 2 |
