@@ -1,8 +1,8 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-06-22 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-06-22
+> **Dernier run** : 2026-06-23 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-06-23
 > **CVE bruts détectés** : 28 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
@@ -10,26 +10,17 @@
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **3 MEDIUM** — récap, pas urgent
-- 🟢 **24 NOISE** — annexe collapse
+- 🟡 **2 MEDIUM** — récap, pas urgent
+- 🟢 **25 NOISE** — annexe collapse
 
 ✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟡 MEDIUM — 3 CVE en 2 groupes
+## 🟡 MEDIUM — 2 CVE en 2 groupes
 
-### 1. `undici` — 7.24.4 → **8.5.0**
-
-- **CVE** : `CVE-2026-9697` (HIGH/RCE), `CVE-2026-6734` (HIGH/Data leak)
-- **Type** : Data leak, RCE
-- **Score max** : 25
-- **Title** : undici: undici: Man-in-the-Middle attack via ignored TLS options with SOCKS5 proxy
-- **Source** : `pnpm-lock.yaml`
-- **Fix** : `pnpm up undici` (jusqu'à >= `8.5.0`)
-
-### 2. `nodemailer` — 8.0.6 → **9.0.1**
+### 1. `nodemailer` — 8.0.6 → **9.0.1**
 
 - **CVE** : `GHSA-p6gq-j5cr-w38f` (HIGH/SSRF)
 - **Type** : SSRF
@@ -38,17 +29,26 @@
 - **Source** : `pnpm-lock.yaml`
 - **Fix** : `pnpm up nodemailer` (jusqu'à >= `9.0.1`)
 
+### 2. `undici` — 7.24.4 → **8.2.0**
+
+- **CVE** : `CVE-2026-6734` (HIGH/Data leak)
+- **Type** : Data leak
+- **Score max** : 10
+- **Title** : undici: undici: Information disclosure and data integrity issues due to incorrect Socks5ProxyAgent connection routing
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up undici` (jusqu'à >= `8.2.0`)
+
 
 ---
 
-## 🟢 NOISE filtré (24 CVE)
+## 🟢 NOISE filtré (25 CVE)
 
 <details>
 <summary>Liste complète (7 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
-| `undici` | 7.24.4 | 8.5.0 | 3 | 5 |
+| `undici` | 7.24.4 | 8.5.0 | 4 | 5 |
 | `ws` | 8.20.0 | 8.21.0 | 2 | 5 |
 | `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
 | `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
