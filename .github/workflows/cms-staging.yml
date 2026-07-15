@@ -1,11 +1,13 @@
-name: CMS Staging (dev server)
+name: CMS Staging (Nomad)
 
-# Convention officielle Veridian (CI-ARCHITECTURE.md §9) :
-#   - 1 stack staging fixe sur cms.staging.veridian.site
-#   - Trigger : push sur branche `staging`
-#   - Deploy via SSH dev-pub → docker compose up (Traefik staging-edge)
-#   - DB Postgres locale à la stack, restorée depuis snapshot prod anonymisé
-#     (à câbler dans une 2e itération, V1 = DB vierge + seed minimal)
+# Pipeline STAGING GitOps Nomad (remplace l'ancien deploy compose Dokploy dev-pub,
+# décommissionné 2026-07-10). Sur push `staging` :
+#   1. Tests lourds (lint + intégration Vitest) — gate avant tout deploy.
+#   2. Build + push image staging GHCR (staging-<sha>).
+#   3. Deploy Nomad staging (SSH bastion → pré-pull ovh-dev → nomad run + monitor).
+#   4. Smoke lourd via Tailscale (health/admin/tenants/partners) sur cms.staging.veridian.site.
+# Env staging PROCHE DE LA PROD : même image, Postgres co-localisé, données clonées.
+# La promotion staging→main (→ deploy prod via ci.yml) reste une PR reviewée.
 
 on:
   push:
@@ -20,40 +22,60 @@ on:
 
 concurrency:
   group: cms-staging-deploy
-  cancel-in-progress: true
+  cancel-in-progress: false  # un deploy Nomad en cours ne doit pas être interrompu
+
+permissions:
+  contents: read
+  packages: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: christ-roy/veridian-cms
-  STAGING_DIR: /opt/staging/cms
   STAGING_URL: https://cms.staging.veridian.site
 
-permissions:
-  contents: write
-  packages: write
-
 jobs:
-  deploy:
+  # ── Tests lourds : gate avant deploy ──────────────────────────────────────
+  test:
+    name: Tests lourds (lint + intégration)
     runs-on: ubuntu-latest
-    if: |
-      vars.STAGING_HOST != '' && vars.STAGING_USER != ''
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
+      - name: Lint
+        run: pnpm lint
+      - name: Tests d'intégration (Vitest)
+        run: pnpm run test:int
 
+  # ── Build + push image staging ────────────────────────────────────────────
+  build:
+    name: Build & push image staging
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      image-tag: ${{ steps.tag.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v6
       - name: Compute image tag
         id: tag
         run: |
           SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "image-tag=staging-$SHA7" >> $GITHUB_OUTPUT
-
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push staging image (runner + builder)
+      - name: Build and push runner (with retry)
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 25
@@ -61,203 +83,116 @@ jobs:
           retry_wait_seconds: 30
           retry_on: error
           command: |
-            # Runner (image de prod)
             docker buildx build \
               --target runner \
               --push \
               -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image-tag }} \
-              -f ./Dockerfile \
-              .
-            # Builder (image complète avec pnpm + payload CLI pour migrate)
-            docker buildx build \
-              --target builder \
-              --push \
-              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${{ steps.tag.outputs.image-tag }} \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest \
               -f ./Dockerfile \
               .
 
-      - name: Setup SSH
-        env:
-          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
-          DEV_HOST: ${{ vars.STAGING_HOST }}
+  # ── Deploy Nomad staging + smoke lourd via Tailscale ──────────────────────
+  deploy:
+    name: Deploy Nomad staging (SSH bastion)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://cms.staging.veridian.site/admin
+    env:
+      JOB_FILE: deploy/cms-staging.nomad.hcl
+      REMOTE_HCL: /tmp/cms-staging-${{ github.run_id }}.nomad.hcl
+      IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install SSH key (bastion Nomad)
         run: |
-          MISSING=""
-          [ -z "$SSH_KEY" ] && MISSING="$MISSING STAGING_SSH_KEY"
-          [ -z "$DEV_HOST" ] && MISSING="$MISSING STAGING_HOST"
-          if [ -n "$MISSING" ]; then
-            echo "::error::Staging credentials missing:$MISSING"
-            exit 1
-          fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/staging_key
-          chmod 600 ~/.ssh/staging_key
-          ssh-keyscan -H "$DEV_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Deploy stack
-        env:
-          DEV_HOST: ${{ vars.STAGING_HOST }}
-          DEV_USER: ${{ vars.STAGING_USER }}
-          IMAGE_TAG: ${{ steps.tag.outputs.image-tag }}
-          PAYLOAD_SECRET: ${{ secrets.STAGING_PAYLOAD_SECRET }}
-          POSTGRES_PASSWORD: ${{ secrets.STAGING_POSTGRES_PASSWORD }}
-          SMTP_HOST: ${{ secrets.STAGING_SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.STAGING_SMTP_PORT }}
-          SMTP_USER: ${{ secrets.STAGING_SMTP_USER }}
-          SMTP_PASSWORD: ${{ secrets.STAGING_SMTP_PASSWORD }}
+      - name: Copy HCL to bastion
         run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            "$JOB_FILE" \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}:$REMOTE_HCL"
+
+      - name: nomad job plan (dry-run) + run -detach + monitor
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "IMAGE_TAG='${IMAGE_TAG}' REMOTE_HCL='${REMOTE_HCL}' bash -s" <<'REMOTE'
           set -euo pipefail
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" "mkdir -p ${{ env.STAGING_DIR }}/compose"
-          scp -i ~/.ssh/staging_key compose/base.yml "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/compose/"
-          scp -i ~/.ssh/staging_key compose/staging.yml "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/compose/"
+          source ~/credentials/nomad-bastion.env
+          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
 
-          ENVFILE="$(mktemp)"
-          {
-            printf 'CMS_IMAGE_TAG=%s\n' "$IMAGE_TAG"
-            printf 'PAYLOAD_SECRET=%s\n' "$PAYLOAD_SECRET"
-            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
-            printf 'SMTP_HOST=%s\n' "${SMTP_HOST:-}"
-            printf 'SMTP_PORT=%s\n' "${SMTP_PORT:-587}"
-            printf 'SMTP_USER=%s\n' "${SMTP_USER:-}"
-            printf 'SMTP_PASSWORD=%s\n' "${SMTP_PASSWORD:-}"
-          } > "$ENVFILE"
-          scp -i ~/.ssh/staging_key "$ENVFILE" "$DEV_USER@$DEV_HOST:${{ env.STAGING_DIR }}/.env"
-          rm -f "$ENVFILE"
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" "chmod 600 ${{ env.STAGING_DIR }}/.env"
+          # Pré-pull sur ovh-dev (le job cms-staging est provider=ovh-dev).
+          # -n IMPÉRATIF : sinon ce ssh avale le stdin du heredoc REMOTE.
+          echo "== pré-pull image staging sur ovh-dev =="
+          ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new dev-pub \
+            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
 
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml pull"
+          echo "== nomad job validate =="
+          /usr/bin/nomad job validate -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL"
 
-          # 1. Démarrer Postgres seul + attendre healthy
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d cms-postgres"
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" '
-            for i in $(seq 1 20); do
-              if docker exec cms-staging-db pg_isready -U cms -d veridian_cms 2>/dev/null; then
-                echo "Postgres ready after $((i*2))s"; break
-              fi
-              sleep 2
-            done
-          '
+          echo "== nomad job plan (diff, inoffensif) =="
+          /usr/bin/nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true
 
-          # 2. Migrate via image builder (contient pnpm + payload CLI)
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-            "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${IMAGE_TAG} && \
-             docker run --rm \
-               --network cms-staging_cms-internal \
-               -e DATABASE_URL='postgresql://cms:${POSTGRES_PASSWORD}@cms-postgres:5432/veridian_cms' \
-               -e PAYLOAD_SECRET='${PAYLOAD_SECRET}' \
-               -e NODE_ENV=production \
-               -e SERVER_URL=https://cms.staging.veridian.site \
-               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-builder:${IMAGE_TAG} \
-               sh -c 'cd /app && pnpm payload migrate'"
-
-          # 3. Up final du runner
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-            "cd ${{ env.STAGING_DIR }} && docker compose -p cms-staging --env-file .env -f compose/base.yml -f compose/staging.yml up -d --remove-orphans"
-
-      - name: Wait for healthy
-        env:
-          DEV_HOST: ${{ vars.STAGING_HOST }}
-          DEV_USER: ${{ vars.STAGING_USER }}
-        run: |
-          echo "Waiting for cms-staging to become healthy..."
-          for i in $(seq 1 36); do
-            STATUS=$(ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-              "docker inspect cms-staging --format '{{.State.Health.Status}}' 2>/dev/null" || echo "starting")
-            if [ "$STATUS" = "healthy" ]; then
-              echo "Healthy after $((i*10))s"
-              exit 0
-            fi
-            sleep 10
+          echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
+          EVAL=$(/usr/bin/nomad job run -detach -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" | grep -oP 'Evaluation ID:\s+\K\S+')
+          echo "eval: ${EVAL:-none}"
+          DEP=""
+          for i in $(seq 1 15); do
+            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
+            [ -n "$DEP" ] && break
+            sleep 2
           done
-          echo "::error::cms-staging not healthy after 6min"
-          ssh -i ~/.ssh/staging_key "$DEV_USER@$DEV_HOST" \
-            "docker logs cms-staging --tail 200" || true
-          exit 1
+          if [ -z "$DEP" ]; then
+            echo "Pas de déploiement créé (job inchangé = no-op) → OK"
+          else
+            echo "deployment: $DEP — monitoring jusqu'à terminal…"
+            /usr/bin/nomad deployment status -monitor "$DEP"
+          fi
+          REMOTE
 
-      # Staging accessible uniquement via tailnet Veridian (2026-05-19).
-      # Cf veridian-hub/docs/CONTRAT-HUB.md §8.6.
-      - name: Tailscale (connect runner to tailnet for staging smoke)
+      - name: Cleanup remote HCL
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "rm -f '$REMOTE_HCL'" || true
+
+      # Staging privé Tailscale → le runner rejoint le tailnet pour le smoke.
+      - name: Tailscale (connect runner to tailnet)
         uses: tailscale/github-action@v3
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci-github
+          tags: tag:ci
           version: latest
 
-      - name: Smoke test staging URL
+      - name: Smoke lourd staging (health/admin/tenants/partners)
+        env:
+          CMS_ADMIN_API_KEY: ${{ secrets.CMS_ADMIN_API_KEY_PROD }}
         run: |
-          echo "Smoke: ${{ env.STAGING_URL }}/api/health (via Tailscale)"
+          set -e
+          echo "== health (retry 120s) =="
+          ok=""
           for i in $(seq 1 12); do
-            if curl -sf --max-time 10 "${{ env.STAGING_URL }}/api/health" | grep -q '"status":"ok"'; then
-              echo "✓ Staging healthy: ${{ env.STAGING_URL }}"
-              exit 0
-            fi
-            echo "Attempt $i: not ready, retry 10s..."
+            if curl -sf --max-time 10 "$STAGING_URL/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
             sleep 10
           done
-          echo "::error::Smoke failed after 2min on ${{ env.STAGING_URL }}"
-          exit 1
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -f ~/.ssh/staging_key
-
-  # Auto-promotion staging → main (trunk-based, cf CLAUDE.md racine §Règle d'or).
-  # Déclenchée seulement si le job `deploy` est vert (staging healthy + smoke OK).
-  # ff-merge uniquement (pas de merge commit, pas de force-push). Si non-ff (ex:
-  # main a divergé), le job échoue et il faut investiguer manuellement.
-  promote-to-main:
-    name: Auto-promote staging → main
-    needs: deploy
-    runs-on: ubuntu-latest
-    if: |
-      github.ref == 'refs/heads/staging' &&
-      github.event_name == 'push'
-    permissions:
-      contents: write
-      actions: write
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-          # PAT si dispo (bypass branch protection requiring status checks),
-          # fallback GITHUB_TOKEN (suffit si pas de protection ou si checks
-          # configurés en "auto-merge" mode).
-          token: ${{ secrets.AUTO_PROMOTE_PAT || secrets.GITHUB_TOKEN }}
-
-      - name: Configure git
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-      - name: Fast-forward main to staging
-        env:
-          STAGING_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          git fetch origin main staging
-          git checkout main
-          # ff-only : si main a divergé de staging, le push échouera et il faut
-          # rebaser staging sur main avant relance.
-          if ! git merge --ff-only "$STAGING_SHA"; then
-            echo "::error::main a divergé de staging — auto-promotion impossible."
-            echo "Corriger : git checkout staging && git merge --ff-only origin/main && git push origin staging"
-            exit 1
-          fi
-          git push origin main
-          echo "✓ main avancé vers $STAGING_SHA (auto-promote)"
-
-      # GitHub n'enchaîne PAS automatiquement les workflows quand le push est
-      # effectué par GITHUB_TOKEN (sécurité anti-loop). On déclenche ci.yml
-      # explicitement via workflow_dispatch pour que l'étage 3 prod tourne.
-      - name: Trigger ci.yml on main
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh workflow run ci.yml --ref main --repo ${{ github.repository }}
-          echo "✓ ci.yml déclenché sur main"
+          [ -n "$ok" ] || { echo "::error::health KO"; exit 1; }
+          echo "✓ health"
+          echo "== admin 200 =="
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
+          echo "✓ admin"
+          echo "== API tenants + partners =="
+          curl -sf "$STAGING_URL/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
+          echo "✓ smoke lourd OK — staging valide"
 
       - name: Telegram notify
         if: always()
@@ -266,10 +201,7 @@ jobs:
           TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
-          STATUS="${{ job.status }}"
-          ICON="✓"; [ "$STATUS" != "success" ] && ICON="✗"
-          SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
+          ICON="✓"; [ "${{ job.status }}" != "success" ] && ICON="✗"
           curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
             -d chat_id=${TG_CHAT} \
-            -d "text=$ICON CMS auto-promote staging→main $STATUS (${SHA7})" \
-            >/dev/null || true
+            -d "text=$ICON CMS staging ${{ job.status }} — ${IMAGE_TAG} (${GITHUB_SHA:0:7})" >/dev/null || true
