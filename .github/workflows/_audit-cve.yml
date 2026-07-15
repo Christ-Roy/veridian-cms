@@ -72,14 +72,23 @@ jobs:
           if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
             # pnpm audit --prod equivalent à npm omit=dev. Affiche tout, gate sur high.
             if [ "${{ inputs.omit-dev }}" = "true" ]; then
-              pnpm audit --prod --audit-level high
+              OUT=$(pnpm audit --prod --audit-level high 2>&1)
             else
-              pnpm audit --audit-level high
+              OUT=$(pnpm audit --audit-level high 2>&1)
             fi
           else
-            npm audit $OMIT_FLAG --audit-level=high
+            OUT=$(npm audit $OMIT_FLAG --audit-level=high 2>&1)
           fi
           AUDIT_EXIT=$?
+          echo "$OUT"
+          # L'endpoint historique npm/pnpm audit est RETIRÉ (HTTP 410, 2026). pnpm
+          # sort alors en erreur TRANSPORT, pas sur une vraie vuln → non-fatal. Le
+          # scan de dépendances faisant autorité reste Trivy FS (job séparé, même CI,
+          # qui lit pnpm-lock.yaml sans dépendre de cet endpoint).
+          if echo "$OUT" | grep -qiE "ERR_PNPM_AUDIT_BAD_RESPONSE|being retired|responded with 410"; then
+            echo "::warning::endpoint ${{ inputs.package-manager }} audit retiré (410) — gate CVE délégué à Trivy FS. Non-bloquant."
+            exit 0
+          fi
           if [ $AUDIT_EXIT -ne 0 ]; then
             echo ""
             echo "::error::CVE audit échoué — vulnérabilité high ou critical détectée."

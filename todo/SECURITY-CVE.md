@@ -1,34 +1,60 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-05-30 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-05-30
-> **CVE bruts détectés** : 12 (avant filtrage)
+> **Dernier run** : 2026-07-15 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-07-15
+> **CVE bruts détectés** : 28 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **0 MEDIUM** — récap, pas urgent
-- 🟢 **11 NOISE** — annexe collapse
+- 🟡 **2 MEDIUM** — récap, pas urgent
+- 🟢 **25 NOISE** — annexe collapse
 
-✅ **Aucune action requise.** Rapport régénéré quotidiennement.
+✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟢 NOISE filtré (11 CVE)
+## 🟡 MEDIUM — 2 CVE en 2 groupes
+
+### 1. `nodemailer` — 8.0.6 → **9.0.1**
+
+- **CVE** : `GHSA-p6gq-j5cr-w38f` (HIGH/SSRF)
+- **Type** : SSRF
+- **Score max** : 15
+- **Title** : Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up nodemailer` (jusqu'à >= `9.0.1`)
+
+### 2. `undici` — 7.24.4 → **8.2.0**
+
+- **CVE** : `CVE-2026-6734` (HIGH/Data leak)
+- **Type** : Data leak
+- **Score max** : 10
+- **Title** : undici: undici: Information disclosure and data integrity issues due to incorrect Socks5ProxyAgent connection routing
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up undici` (jusqu'à >= `8.2.0`)
+
+
+---
+
+## 🟢 NOISE filtré (25 CVE)
 
 <details>
-<summary>Liste complète (4 groupes — clique pour déplier)</summary>
+<summary>Liste complète (7 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
-| `dompurify` | 3.2.7 | 3.4.0 | 8 | 4 |
+| `undici` | 7.24.4 | 8.5.0 | 4 | 5 |
+| `ws` | 8.20.0 | 8.21.0 | 2 | 5 |
+| `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
 | `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
 | `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
-| `ws` | 8.20.0 | 8.20.1 | 1 | 2 |
+| `js-yaml` | 4.1.1 | 4.2.0 | 1 | 2 |
+| `nodemailer` | 8.0.6 | 8.0.9 | 3 | 2 |
 
 </details>
 

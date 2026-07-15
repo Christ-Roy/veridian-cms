@@ -262,52 +262,87 @@ jobs:
   # ÉTAGE 3 — Deploy prod via webhook Dokploy
   # ────────────────────────────────────────────────────────────────────────
   deploy-prod:
-    name: Deploy → cms.veridian.site (Dokploy GitOps)
+    name: Deploy → cms.veridian.site (Nomad SSH-bastion)
     needs: [docker, trivy-image]
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     environment:
       name: production
       url: https://cms.veridian.site/admin
+    env:
+      JOB_FILE: deploy/cms.nomad.hcl
+      REMOTE_HCL: /tmp/cms-${{ github.run_id }}.nomad.hcl
     steps:
       - uses: actions/checkout@v6
 
-      - name: Trigger Dokploy redeploy + retag rollback
-        env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          VPS_HOST: ${{ vars.VPS_HOST }}
-          VPS_USER: ${{ vars.VPS_USER }}
-          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
-          IMAGE_VERSION: ${{ needs.docker.outputs.version }}
+      # Deploy GitOps Nomad (remplace l'ancien webhook Dokploy décommissionné le
+      # 2026-07-10). La CI SSH vers le bastion ; le NOMAD_TOKEN ne quitte jamais
+      # le bastion (sourcé in situ). Canon : veridian-hub/deploy/README.md.
+      - name: Install SSH key (bastion Nomad)
         run: |
-          set -euo pipefail
-          if [ -z "$SSH_KEY" ] || [ -z "$VPS_HOST" ] || [ -z "$DOKPLOY_COMPOSE_ID" ]; then
-            echo "::error::Missing DEPLOY_SSH_KEY / VPS_HOST / DOKPLOY_COMPOSE_ID — abort"
-            exit 1
-          fi
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" bash -s << DEPLOY
-            set -e
-            # Tag image actuelle comme :rollback avant pull (rollback express)
-            CURRENT_ID=\$(docker images ghcr.io/christ-roy/veridian-cms:latest --format '{{.ID}}' 2>/dev/null || echo "")
-            if [ -n "\$CURRENT_ID" ]; then
-              docker tag "\$CURRENT_ID" ghcr.io/christ-roy/veridian-cms:rollback
-              echo "Tagged current image as :rollback (\$CURRENT_ID)"
-            fi
-            # Pull la nouvelle image (idempotent, Dokploy refera de toute façon)
-            docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_VERSION} || true
-            # Trigger Dokploy compose.deploy via API locale (compose.deploy = re-clone + up)
-            DKEY=\$(grep '^DOKPLOY_API_KEY=' ~/credentials/.all-creds.env | cut -d= -f2)
-            curl -sf -X POST \
-              -H "x-api-key: \$DKEY" \
-              -H "Content-Type: application/json" \
-              -d "{\"json\":{\"composeId\":\"$DOKPLOY_COMPOSE_ID\"}}" \
-              http://localhost:3000/api/trpc/compose.deploy \
-              && echo "CMS prod deploy triggered (compose=$DOKPLOY_COMPOSE_ID)"
-          DEPLOY
+          echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Copy HCL to bastion
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            "$JOB_FILE" \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}:$REMOTE_HCL"
+
+      - name: nomad job plan (dry-run) + run -detach + monitor
+        env:
+          IMAGE_TAG: ${{ needs.docker.outputs.version }}
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "IMAGE_TAG='${IMAGE_TAG}' REMOTE_HCL='${REMOTE_HCL}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          source ~/credentials/nomad-bastion.env
+          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
+
+          # ── Pré-pull sur ovh-prod (le job cms est provider=ovh-prod, PAS le
+          #    bastion). Le daemon docker d'ovh-prod partage son image store avec
+          #    Nomad (root) → l'image est présente quand la task démarre, sans
+          #    bloc auth dans le HCL (ghcr privé sinon 401). Auth ghcr déjà en
+          #    place sur ovh-prod (cf cutover 2026-07-15).
+          echo "== pré-pull image sur ovh-prod =="
+          ssh -n -o StrictHostKeyChecking=accept-new prod-pub \
+            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
+
+          echo "== nomad job validate =="
+          /usr/bin/nomad job validate -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL"
+
+          echo "== nomad job plan (diff, inoffensif) =="
+          /usr/bin/nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true
+
+          # Job prod STATEFUL (DB co-localisée, count=1) → un run recrée l'alloc
+          # (bref restart, attendu). run -detach → monitoring ciblé du Deployment
+          # (bloque jusqu'à terminal, exit ≠0 si échec/auto-revert).
+          echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
+          EVAL=$(/usr/bin/nomad job run -detach -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" | grep -oP 'Evaluation ID:\s+\K\S+')
+          echo "eval: ${EVAL:-none}"
+          DEP=""
+          for i in $(seq 1 15); do
+            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
+            [ -n "$DEP" ] && break
+            sleep 2
+          done
+          if [ -z "$DEP" ]; then
+            echo "Pas de déploiement créé (job inchangé = no-op) → OK"
+          else
+            echo "deployment: $DEP — monitoring jusqu'à terminal…"
+            /usr/bin/nomad deployment status -monitor "$DEP"
+          fi
+          REMOTE
+
+      - name: Cleanup remote HCL
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "rm -f '$REMOTE_HCL'" || true
 
       - name: Wait for healthy prod
         run: |
