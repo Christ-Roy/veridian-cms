@@ -49,6 +49,12 @@ FROM base AS runner
 WORKDIR /app
 
 ENV NODE_ENV production
+
+# Le runtime exécute `node server.js` (sortie standalone Next) — npm/npx/corepack
+# ne sont PAS requis. On les retire pour éliminer les CVE de leurs dépendances
+# bundlées dans l'image de base (ex: sigstore CVE-2026-48815) et alléger l'image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
+    /usr/local/lib/node_modules/corepack /usr/local/bin/corepack 2>/dev/null || true
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
 
