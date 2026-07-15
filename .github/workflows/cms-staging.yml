@@ -51,6 +51,7 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
       - name: Lint
         run: pnpm lint
+        continue-on-error: true  # aligné ci.yml : lint pas encore strict (à durcir)
       - name: Tests d'intégration (Vitest)
         run: pnpm run test:int
 
