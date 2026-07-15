@@ -2,14 +2,15 @@ name: Emergency Rollback (prod)
 
 # Déclenché par :
 #   - Le job deploy-prod du workflow ci.yml si smoke/health échoue
-#   - Alertes Grafana Cloud (memory_creep, oom_killed, synthetic_failed_3x)
-#     via webhook GitHub `repository_dispatch`.
+#   - Alertes monitoring via webhook GitHub `repository_dispatch`.
 #
-# Action :
-#   1. Retag image :rollback en :latest sur le VPS prod
-#   2. Recharge Dokploy compose
-#   3. Trigger emergency-revert.yml pour le revert Git
-#   4. Telegram alert
+# Action (Nomad GitOps — l'ancien deploy Dokploy est décommissionné 2026-07-10) :
+#   1. `nomad job revert cms <version-1>` sur le bastion → restaure la version de
+#      job précédente (donc l'image d'avant). Note : le job cms a `auto_revert =
+#      true`, qui couvre déjà le cas "nouveau deploy jamais healthy". Ce workflow
+#      est le filet pour un breakage POST-deploy (alloc healthy mais app cassée).
+#   2. Trigger emergency-revert.yml pour le revert Git.
+#   3. Telegram alert.
 
 on:
   repository_dispatch:
@@ -25,10 +26,6 @@ concurrency:
   group: cms-rollback-prod
   cancel-in-progress: false
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: christ-roy/veridian-cms
-
 permissions:
   contents: read
   actions: write
@@ -40,37 +37,37 @@ jobs:
     environment:
       name: production
     steps:
-      - uses: actions/checkout@v6
-
-      - name: Rollback image on VPS prod
-        env:
-          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          VPS_HOST: ${{ vars.VPS_HOST }}
-          VPS_USER: ${{ vars.VPS_USER }}
-          DOKPLOY_COMPOSE_ID: ${{ vars.DOKPLOY_COMPOSE_ID }}
+      - name: Install SSH key (bastion Nomad)
         run: |
-          set -euo pipefail
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$VPS_USER@$VPS_HOST" bash -s << 'ROLLBACK'
-            set -e
-            ROLLBACK_ID=$(docker images ghcr.io/christ-roy/veridian-cms:rollback --format '{{.ID}}' 2>/dev/null || echo "")
-            if [ -z "$ROLLBACK_ID" ]; then
-              echo "::error::No :rollback tag found — cannot rollback"
-              exit 1
-            fi
-            echo "Rolling back to image $ROLLBACK_ID"
-            docker tag "$ROLLBACK_ID" ghcr.io/christ-roy/veridian-cms:latest
-            DKEY=$(grep '^DOKPLOY_API_KEY=' ~/credentials/.all-creds.env | cut -d= -f2)
-            curl -sf -X POST \
-              -H "x-api-key: $DKEY" \
-              -H "Content-Type: application/json" \
-              -d "{\"json\":{\"composeId\":\"${DOKPLOY_COMPOSE_ID}\"}}" \
-              http://localhost:3000/api/trpc/compose.deploy \
-              && echo "Rollback deploy triggered"
-          ROLLBACK
+          echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: nomad job revert (version précédente)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          source ~/credentials/nomad-bastion.env
+          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
+          CUR=$(/usr/bin/nomad job inspect cms | python3 -c 'import sys,json;print(json.load(sys.stdin)["Job"]["Version"])')
+          if [ "$CUR" -lt 1 ]; then
+            echo "::error::pas de version antérieure à revert (version=$CUR)"
+            exit 1
+          fi
+          PREV=$((CUR - 1))
+          echo "revert cms : version $CUR → $PREV"
+          EVAL=$(/usr/bin/nomad job revert -detach cms "$PREV" 2>&1 | grep -oP 'Evaluation ID:\s+\K\S+' || true)
+          echo "eval: ${EVAL:-none}"
+          DEP=""
+          for i in $(seq 1 15); do
+            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
+            [ -n "$DEP" ] && break
+            sleep 2
+          done
+          [ -n "$DEP" ] && /usr/bin/nomad deployment status -monitor "$DEP" || echo "pas de deployment (no-op)"
+          REMOTE
 
       - name: Wait for rollback healthy
         run: |
@@ -81,7 +78,6 @@ jobs:
               exit 0
             fi
             sleep 10
-          </dev/null && true
           done
           echo "::error::Rollback health failed after 3min — INCIDENT ESCALATION"
           exit 1
