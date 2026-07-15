@@ -34,11 +34,31 @@ env:
   STAGING_URL: https://cms.staging.veridian.site
 
 jobs:
-  # ── Tests lourds : gate avant deploy ──────────────────────────────────────
+  # ── Tests lourds : gate avant deploy (postgres + migrations + intégration) ──
   test:
-    name: Tests lourds (lint + intégration)
+    name: Tests lourds (migrations + intégration)
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: veridian_cms_test
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://cms:testpass@localhost:5432/veridian_cms_test
+      PAYLOAD_SECRET: ci_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      PAYLOAD_DB_PUSH: "false"
+      NODE_ENV: test
+      SERVER_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -48,10 +68,12 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile --ignore-scripts || pnpm install --no-frozen-lockfile --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Lint
         run: pnpm lint
         continue-on-error: true  # aligné ci.yml : lint pas encore strict (à durcir)
+      - name: Apply Payload migrations
+        run: pnpm exec payload migrate
       - name: Tests d'intégration (Vitest)
         run: pnpm run test:int
 
