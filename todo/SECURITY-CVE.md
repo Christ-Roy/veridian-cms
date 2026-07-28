@@ -1,34 +1,70 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-07-20 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-07-20
-> **CVE bruts détectés** : 17 (avant filtrage)
+> **Dernier run** : 2026-07-28 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-07-28
+> **CVE bruts détectés** : 35 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **0 MEDIUM** — récap, pas urgent
-- 🟢 **16 NOISE** — annexe collapse
+- 🟡 **6 MEDIUM** — récap, pas urgent
+- 🟢 **27 NOISE** — annexe collapse
 
-✅ **Aucune action requise.** Rapport régénéré quotidiennement.
+✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟢 NOISE filtré (16 CVE)
+## 🟡 MEDIUM — 6 CVE en 3 groupes
+
+### 1. `fast-uri` — 3.1.2 → **4.1.1**
+
+- **CVE** : `CVE-2026-16221` (HIGH/SSRF)
+- **Type** : SSRF
+- **Score max** : 15
+- **Title** : Impact: fast-uri versions from 2.3.1 through 4.1.0 (including the 3.x  ...
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up fast-uri` (jusqu'à >= `4.1.1`)
+
+### 2. `next` — 16.2.10 → **16.2.11**
+
+- **CVE** : `CVE-2026-64642` (HIGH/Auth bypass), `CVE-2026-64645` (HIGH/SSRF), `CVE-2026-64649` (HIGH/SSRF)
+- **Type** : Auth bypass, SSRF
+- **Score max** : 15
+- **Title** : Next.js: Middleware / Proxy bypass in App Router applications using Turbopack and single locale
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up next` (jusqu'à >= `16.2.11`)
+
+### 3. `postcss` — 8.4.31 → **8.5.18**
+
+- **CVE** : `CVE-2026-45623` (HIGH/Data leak), `GHSA-r28c-9q8g-f849` (HIGH/Data leak)
+- **Type** : Data leak
+- **Score max** : 10
+- **Title** : PostCSS: Arbitrary file read and information disclosure via attacker-controlled sourceMappingURL in CSS comments
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up postcss` (jusqu'à >= `8.5.18`)
+
+
+---
+
+## 🟢 NOISE filtré (27 CVE)
 
 <details>
-<summary>Liste complète (4 groupes — clique pour déplier)</summary>
+<summary>Liste complète (8 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
+| `fast-uri` | 3.1.2 | 4.0.1 | 1 | 5 |
+| `immutable` | 4.3.8 | 5.1.8 | 2 | 5 |
+| `js-yaml` | 4.1.1 | 4.3.0 | 2 | 5 |
+| `next` | 16.2.10 | 16.2.11 | 6 | 5 |
+| `sharp` | 0.34.2 | 0.35.0 | 1 | 5 |
 | `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
 | `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
 | `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
-| `js-yaml` | 4.1.1 | 4.2.0 | 1 | 2 |
 
 </details>
 
