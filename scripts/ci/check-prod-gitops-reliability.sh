@@ -67,6 +67,10 @@ require_fixed "$staging" 'tailscale/github-action@v4' 'action Tailscale staging 
 # raison de rester dans l'image exposée et leurs CVE ne doivent pas être ignorées.
 require_fixed "$dockerfile" '/usr/local/lib/node_modules/npm' 'suppression npm runtime absente'
 require_fixed "$dockerfile" 'test ! -e /usr/local/lib/node_modules/corepack' 'assertion corepack runtime absente'
+require_fixed "$dockerfile" '/sharp-libvips' 'copie libvips Sharp runtime absente'
+require_fixed "$dockerfile" 'ENV LD_LIBRARY_PATH=/usr/local/lib/sharp' 'chemin linker libvips absent'
+require_fixed "$ci" 'Sharp runtime smoke' 'smoke Sharp image prod absent'
+require_fixed "$staging" 'Sharp runtime smoke' 'smoke Sharp image staging absent'
 reject_fixed "$trivyignore" 'CVE-2026-33671' 'ancienne exception picomatch encore présente'
 
 plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)

@@ -44,6 +44,17 @@ RUN \
   else echo "Lockfile not found." && exit 1; \
   fi
 
+# Le traceur standalone de Next copie le binding sharp mais omet parfois la
+# bibliothèque libvips optionnelle de pnpm. On l'extrait explicitement du stage
+# builder ; le stage runner la réinjecte dans la version réellement résolue.
+RUN set -eux; \
+  sharp_libvips_dir="$(find /app/node_modules/.pnpm \
+    -path '*/node_modules/@img/sharp-libvips-linuxmusl-x64' \
+    -type d -print -quit)"; \
+  test -n "$sharp_libvips_dir"; \
+  find "$sharp_libvips_dir/lib" -name 'libvips-cpp.so.*' | grep -q .; \
+  cp -a "$sharp_libvips_dir/lib" /sharp-libvips
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
@@ -78,6 +89,12 @@ RUN mkdir media && chown nextjs:nodejs media
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /sharp-libvips /usr/local/lib/sharp
+
+# musl doit connaître le répertoire au démarrage du processus Node ; copier la
+# bibliothèque dans node_modules après coup ne suffit pas au linker dynamique.
+ENV LD_LIBRARY_PATH=/usr/local/lib/sharp
+RUN find /usr/local/lib/sharp -name 'libvips-cpp.so.*' | grep -q .
 
 USER nextjs
 
