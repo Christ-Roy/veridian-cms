@@ -195,9 +195,18 @@ jobs:
           # Pré-pull sur ovh-dev après validation du plan. -n est impératif :
           # sans lui, ce SSH consommerait la suite du heredoc distant.
           echo "== pré-pull image staging sur ovh-dev =="
-          ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
-            -o StrictHostKeyChecking=accept-new dev-pub \
-            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
+          PULLED=""
+          for attempt in 1 2 3; do
+            if timeout 180s ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
+              -o StrictHostKeyChecking=accept-new dev-pub \
+              "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"; then
+              PULLED=1
+              break
+            fi
+            echo "pré-pull staging tentative $attempt/3 en échec"
+            sleep $((attempt * 10))
+          done
+          [ -n "$PULLED" ] || { echo "::error::pré-pull staging impossible après 3 tentatives"; exit 1; }
 
           echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
           EVAL=$(/usr/bin/nomad job run -detach "${RUN_INDEX_ARGS[@]}" \

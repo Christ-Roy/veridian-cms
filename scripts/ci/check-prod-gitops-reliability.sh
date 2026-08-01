@@ -71,6 +71,8 @@ require_fixed "$dockerfile" '/sharp-libvips' 'copie libvips Sharp runtime absent
 require_fixed "$dockerfile" 'ENV LD_LIBRARY_PATH=/usr/local/lib/sharp' 'chemin linker libvips absent'
 require_fixed "$ci" 'Sharp runtime smoke' 'smoke Sharp image prod absent'
 require_fixed "$staging" 'Sharp runtime smoke' 'smoke Sharp image staging absent'
+require_fixed "$ci" 'pré-pull prod impossible après 3 tentatives' 'retry pré-pull prod absent'
+require_fixed "$staging" 'pré-pull staging impossible après 3 tentatives' 'retry pré-pull staging absent'
 reject_fixed "$trivyignore" 'CVE-2026-33671' 'ancienne exception picomatch encore présente'
 
 plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)

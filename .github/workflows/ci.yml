@@ -360,8 +360,18 @@ jobs:
           /home/brunon5/all-cron/backups/prod-r2-backup.sh
 
           echo "== pré-pull image sur ovh-prod =="
-          ssh -n -o StrictHostKeyChecking=accept-new prod-pub \
-            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
+          PULLED=""
+          for attempt in 1 2 3; do
+            if timeout 180s ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
+              -o StrictHostKeyChecking=accept-new prod-pub \
+              "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"; then
+              PULLED=1
+              break
+            fi
+            echo "pré-pull prod tentative $attempt/3 en échec"
+            sleep $((attempt * 10))
+          done
+          [ -n "$PULLED" ] || { echo "::error::pré-pull prod impossible après 3 tentatives"; exit 1; }
 
           # Job prod STATEFUL (DB co-localisée, count=1) → un run recrée l'alloc
           # (bref restart, attendu). run -detach → monitoring ciblé du Deployment
