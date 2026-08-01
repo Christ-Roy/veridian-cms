@@ -91,14 +91,14 @@ jobs:
         run: |
           SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
           echo "image-tag=staging-$SHA7" >> $GITHUB_OUTPUT
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push runner (with retry)
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_minutes: 25
           max_attempts: 3
@@ -134,7 +134,15 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          for attempt in 1 2 3; do
+            if ssh-keyscan -T 15 -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              exit 0
+            fi
+            echo "ssh-keyscan tentative $attempt/3 en échec"
+            sleep 3
+          done
+          echo "::error::impossible de récupérer la clé SSH du bastion"
+          exit 1
 
       - name: Copy HCL to bastion
         run: |
@@ -151,20 +159,38 @@ jobs:
           source ~/credentials/nomad-bastion.env
           export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
 
-          # Pré-pull sur ovh-dev (le job cms-staging est provider=ovh-dev).
-          # -n IMPÉRATIF : sinon ce ssh avale le stdin du heredoc REMOTE.
-          echo "== pré-pull image staging sur ovh-dev =="
-          ssh -n -o BatchMode=yes -o StrictHostKeyChecking=accept-new dev-pub \
-            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
-
           echo "== nomad job validate =="
           /usr/bin/nomad job validate -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL"
 
           echo "== nomad job plan (diff, inoffensif) =="
-          /usr/bin/nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true
+          set +e
+          PLAN_OUTPUT=$(/usr/bin/nomad job plan -no-color \
+            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" 2>&1)
+          PLAN_STATUS=$?
+          set -e
+          printf '%s\n' "$PLAN_OUTPUT"
+          case "$PLAN_STATUS" in
+            0) echo "plan sans création ou destruction d'allocation" ;;
+            1) echo "plan avec remplacement d'allocation attendu" ;;
+            *) echo "::error::nomad job plan staging a échoué (code=$PLAN_STATUS)"; exit "$PLAN_STATUS" ;;
+          esac
+
+          MODIFY_INDEX=$(printf '%s\n' "$PLAN_OUTPUT" \
+            | sed -n 's/^Job Modify Index: \([0-9][0-9]*\)$/\1/p' | tail -1)
+          RUN_INDEX_ARGS=()
+          [ -n "$MODIFY_INDEX" ] && RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")
+
+          # Pré-pull sur ovh-dev après validation du plan. -n est impératif :
+          # sans lui, ce SSH consommerait la suite du heredoc distant.
+          echo "== pré-pull image staging sur ovh-dev =="
+          ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
+            -o StrictHostKeyChecking=accept-new dev-pub \
+            "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"
 
           echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
-          EVAL=$(/usr/bin/nomad job run -detach -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" | grep -oP 'Evaluation ID:\s+\K\S+')
+          EVAL=$(/usr/bin/nomad job run -detach "${RUN_INDEX_ARGS[@]}" \
+            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" \
+            | grep -oP 'Evaluation ID:\s+\K\S+')
           echo "eval: ${EVAL:-none}"
           DEP=""
           for i in $(seq 1 15); do
@@ -187,14 +213,10 @@ jobs:
             "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
             "rm -f '$REMOTE_HCL'" || true
 
-      # Staging privé Tailscale → le runner rejoint le tailnet pour le smoke.
-      # Smoke NON-BLOQUANT : le vrai gate est (1) tests lourds migrations+intégration,
-      # (2) le monitoring du déploiement Nomad ci-dessus (alloc healthy = terminal OK).
-      # Le smoke via runner-Tailscale a une connectivité flaky (routing tailnet
-      # éphémère) → il reste visible mais ne fait pas échouer le deploy.
+      # Staging privé Tailscale : un run ne peut servir de preuve de promotion
+      # que si l'API et les routes métier répondent réellement depuis le tailnet.
       - name: Tailscale (connect runner to tailnet)
-        continue-on-error: true
-        uses: tailscale/github-action@v3
+        uses: tailscale/github-action@v4
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
@@ -202,7 +224,6 @@ jobs:
           version: latest
 
       - name: Smoke lourd staging (health/admin/tenants/partners)
-        continue-on-error: true  # cf note ci-dessus : gate réel = tests lourds + monitor Nomad
         env:
           CMS_ADMIN_API_KEY: ${{ secrets.CMS_ADMIN_API_KEY_PROD }}
         run: |

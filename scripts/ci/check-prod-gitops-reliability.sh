@@ -4,6 +4,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 hcl="$root/deploy/cms.nomad.hcl"
 ci="$root/.github/workflows/ci.yml"
+staging="$root/.github/workflows/cms-staging.yml"
+dockerfile="$root/Dockerfile"
+trivyignore="$root/.trivyignore.yaml"
 rollback="$root/.github/workflows/emergency-rollback.yml"
 revert="$root/.github/workflows/emergency-revert.yml"
 
@@ -43,7 +46,20 @@ reject_fixed "$ci" 'nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" |
 require_fixed "$ci" 'RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")' 'protection TOCTOU check-index absente'
 require_fixed "$ci" '/home/brunon5/all-cron/backups/prod-r2-backup.sh' 'backup R2 pré-déploiement absent'
 reject_fixed "$ci" 'continue-on-error: true  # lint' 'lint prod encore autorisé à échouer'
-reject_fixed "$root/.github/workflows/cms-staging.yml" 'continue-on-error: true  # aligné ci.yml : lint' 'lint staging encore autorisé à échouer'
+reject_fixed "$staging" 'nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true' 'erreur de plan staging masquée'
+require_fixed "$staging" 'PLAN_STATUS=$?' 'code retour du plan staging non capturé'
+require_fixed "$staging" 'RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")' 'protection check-index staging absente'
+reject_fixed "$staging" 'continue-on-error: true' 'preuve staging encore autorisée à échouer'
+require_fixed "$staging" 'docker/setup-buildx-action@v4' 'action buildx staging obsolète'
+require_fixed "$staging" 'docker/login-action@v4' 'action login staging obsolète'
+require_fixed "$staging" 'nick-fields/retry@v4' 'action retry staging obsolète'
+require_fixed "$staging" 'tailscale/github-action@v4' 'action Tailscale staging obsolète'
+
+# Le runner exécute directement node server.js : npm et corepack n'ont aucune
+# raison de rester dans l'image exposée et leurs CVE ne doivent pas être ignorées.
+require_fixed "$dockerfile" '/usr/local/lib/node_modules/npm' 'suppression npm runtime absente'
+require_fixed "$dockerfile" 'test ! -e /usr/local/lib/node_modules/corepack' 'assertion corepack runtime absente'
+reject_fixed "$trivyignore" 'CVE-2026-33671' 'ancienne exception picomatch encore présente'
 
 plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)
 backup_line=$(grep -nF '/home/brunon5/all-cron/backups/prod-r2-backup.sh' "$ci" | cut -d: -f1)
@@ -68,5 +84,7 @@ require_fixed "$revert" 'REVERT_BRANCH=$BRANCH' 'branche de revert non propagée
 require_fixed "$revert" '--head "$REVERT_BRANCH"' 'PR de revert créée depuis une variable invalide'
 reject_fixed "$revert" '$revert_branch' 'ancienne variable de branche invalide encore présente'
 reject_fixed "$revert" 'gh pr merge --auto --squash --delete-branch "$revert_branch" || true' 'échec auto-merge masqué'
+
+bash "$root/scripts/ci/test-check-staging-fresh.sh"
 
 echo 'OK: invariants GitOps CMS prod et rollback fail-closed'

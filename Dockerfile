@@ -48,13 +48,16 @@ RUN \
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
 
 # Le runtime exécute `node server.js` (sortie standalone Next) — npm/npx/corepack
 # ne sont PAS requis. On les retire pour éliminer les CVE de leurs dépendances
 # bundlées dans l'image de base (ex: sigstore CVE-2026-48815) et alléger l'image.
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx \
-    /usr/local/lib/node_modules/corepack /usr/local/bin/corepack 2>/dev/null || true
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /root/.npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/pnpm /usr/local/bin/pnpx \
+    && test ! -e /usr/local/lib/node_modules/npm \
+    && test ! -e /usr/local/lib/node_modules/corepack
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
 
@@ -80,7 +83,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 # Healthcheck : Docker/Dokploy doivent pouvoir évaluer la santé du container.
 # /api/health retourne {"status":"ok"} quand Payload + DB répondent.
@@ -90,4 +94,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
-CMD HOSTNAME="0.0.0.0" node server.js
+CMD ["node", "server.js"]
