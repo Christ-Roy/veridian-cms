@@ -38,8 +38,11 @@ job "cms-staging" {
       mode = "bridge"
       # host_network tailscale : le port CNI bind sur l'IP Tailscale du nœud
       # uniquement → app injoignable en public, Traefik route via Tailscale.
+      # Le port doit rester stable : le routeur Sablier scale-to-zero l'utilise
+      # aussi quand le job est à count=0 et qu'aucun service Nomad n'existe.
       port "http" {
         to           = 3000
+        static       = 19094
         host_network = "tailscale"
       }
     }
