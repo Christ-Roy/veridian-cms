@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 hcl="$root/deploy/cms.nomad.hcl"
+staging_hcl="$root/deploy/cms-staging.nomad.hcl"
 ci="$root/.github/workflows/ci.yml"
 staging="$root/.github/workflows/cms-staging.yml"
 dockerfile="$root/Dockerfile"
@@ -36,6 +37,13 @@ require_fixed "$hcl" 'limit           = 4' 'check_restart applicatif absent'
 require_fixed "$hcl" 'init  = true' 'init Docker anti-zombies absent'
 require_fixed "$hcl" 'memory     = 384' 'réservation mémoire app inattendue'
 require_fixed "$hcl" 'memory_max = 7000' 'plafond mémoire app absent'
+
+# Le HCL de test doit conserver les propriétés prouvées du staging canonique.
+# Sans elles, tester une branche feature peut silencieusement dégrader le banc.
+require_fixed "$staging_hcl" 'static       = 19094' 'port stable Sablier staging absent'
+require_fixed "$staging_hcl" 'name     = "cms-staging-selfheal"' 'self-heal staging absent'
+require_fixed "$staging_hcl" 'init  = true' 'init anti-zombies staging absent'
+require_fixed "$staging_hcl" 'memory     = 128' 'réservation mémoire staging régressée'
 
 # Le plan Nomad retourne 0 sans remplacement, 1 avec remplacement et 255 sur
 # erreur. Le workflow accepte 0/1 mais ne doit jamais masquer le reste.
