@@ -32,6 +32,8 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: christ-roy/veridian-cms
   STAGING_URL: https://cms.staging.veridian.site
+  STAGING_SMOKE_ORIGIN: http://100.108.136.89
+  STAGING_SMOKE_HOST: cms.staging.veridian.site
 
 jobs:
   # ── Tests lourds : gate avant deploy (postgres + migrations + intégration) ──
@@ -211,16 +213,19 @@ jobs:
           ok=""
           deadline=$((SECONDS + 180))
           while [ "$SECONDS" -lt "$deadline" ]; do
-            if curl -sf --max-time 5 "$STAGING_URL/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
+            if curl -sf --max-time 5 -H "Host: $STAGING_SMOKE_HOST" \
+              "$STAGING_SMOKE_ORIGIN/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
             sleep 5
           done
           [ -n "$ok" ] || { echo "::error::health KO"; exit 1; }
           echo "✓ health"
           echo "== admin 200 =="
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $STAGING_SMOKE_HOST" \
+            "$STAGING_SMOKE_ORIGIN/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
           echo "✓ admin"
           echo "== API tenants + partners =="
-          curl -sf "$STAGING_URL/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
+          curl -sf -H "Host: $STAGING_SMOKE_HOST" \
+            "$STAGING_SMOKE_ORIGIN/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
           echo "✓ smoke lourd OK — staging valide"
 
       - name: Telegram notify
