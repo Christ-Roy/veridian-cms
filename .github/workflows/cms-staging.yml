@@ -5,7 +5,7 @@ name: CMS Staging (Nomad)
 #   1. Tests lourds (lint + intégration Vitest) — gate avant tout deploy.
 #   2. Build + push image staging GHCR (staging-<sha>).
 #   3. Deploy Nomad staging (SSH bastion → pré-pull ovh-dev → nomad run + monitor).
-#   4. Smoke lourd via Tailscale (health/admin/tenants/partners) sur cms.staging.veridian.site.
+#   4. Smoke lourd depuis le bastion (health/admin/tenants/partners) via l'ingress tailnet.
 # Env staging PROCHE DE LA PROD : même image, Postgres co-localisé, données clonées.
 # La promotion staging→main (→ deploy prod via ci.yml) reste une PR reviewée.
 
@@ -31,7 +31,6 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: christ-roy/veridian-cms
-  STAGING_URL: https://cms.staging.veridian.site
   STAGING_SMOKE_ORIGIN: http://100.108.136.89
   STAGING_SMOKE_HOST: cms.staging.veridian.site
 
@@ -116,7 +115,7 @@ jobs:
               -f ./Dockerfile \
               .
 
-  # ── Deploy Nomad staging + smoke lourd via Tailscale ──────────────────────
+  # ── Deploy Nomad staging + smoke lourd depuis le bastion ─────────────────
   deploy:
     name: Deploy Nomad staging (SSH bastion)
     needs: build
@@ -190,43 +189,31 @@ jobs:
             "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
             "rm -f '$REMOTE_HCL'" || true
 
-      # Staging privé Tailscale → le runner rejoint le tailnet pour le smoke.
-      # Smoke NON-BLOQUANT : le vrai gate est (1) tests lourds migrations+intégration,
-      # (2) le monitoring du déploiement Nomad ci-dessus (alloc healthy = terminal OK).
-      # Le smoke via runner-Tailscale a une connectivité flaky (routing tailnet
-      # éphémère) → il reste visible mais ne fait pas échouer le deploy.
-      - name: Tailscale (connect runner to tailnet)
-        continue-on-error: true
-        uses: tailscale/github-action@v3
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci
-          version: latest
-
       - name: Smoke lourd staging (health/admin/tenants/partners)
-        env:
-          CMS_ADMIN_API_KEY: ${{ secrets.CMS_ADMIN_API_KEY_PROD }}
         run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "SMOKE_ORIGIN='$STAGING_SMOKE_ORIGIN' SMOKE_HOST='$STAGING_SMOKE_HOST' bash -s" <<'REMOTE'
           set -e
           echo "== health (deadline 180s) =="
           ok=""
           deadline=$((SECONDS + 180))
           while [ "$SECONDS" -lt "$deadline" ]; do
-            if curl -sf --max-time 5 -H "Host: $STAGING_SMOKE_HOST" \
-              "$STAGING_SMOKE_ORIGIN/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
+            if curl -sf --max-time 5 -H "Host: $SMOKE_HOST" \
+              "$SMOKE_ORIGIN/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
             sleep 5
           done
           [ -n "$ok" ] || { echo "::error::health KO"; exit 1; }
           echo "✓ health"
           echo "== admin 200 =="
-          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $STAGING_SMOKE_HOST" \
-            "$STAGING_SMOKE_ORIGIN/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H "Host: $SMOKE_HOST" \
+            "$SMOKE_ORIGIN/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
           echo "✓ admin"
           echo "== API tenants + partners =="
-          curl -sf -H "Host: $STAGING_SMOKE_HOST" \
-            "$STAGING_SMOKE_ORIGIN/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
+          curl -sf -H "Host: $SMOKE_HOST" \
+            "$SMOKE_ORIGIN/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
           echo "✓ smoke lourd OK — staging valide"
+          REMOTE
 
       - name: Telegram notify
         if: always()
