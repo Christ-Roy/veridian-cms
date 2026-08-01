@@ -71,7 +71,6 @@ jobs:
 
       - name: ESLint
         run: pnpm exec eslint . --quiet
-        continue-on-error: true  # lint pas encore strict, à durcir progressivement
 
       - name: Test mapping (1 fichier critique = 1 test colocalisé)
         run: ./scripts/ci/check-test-mapping.sh

@@ -42,6 +42,8 @@ require_fixed "$ci" '*) echo "::error::nomad job plan a échoué' 'erreur de pla
 reject_fixed "$ci" 'nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true' 'erreur de plan Nomad masquée'
 require_fixed "$ci" 'RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")' 'protection TOCTOU check-index absente'
 require_fixed "$ci" '/home/brunon5/all-cron/backups/prod-r2-backup.sh' 'backup R2 pré-déploiement absent'
+reject_fixed "$ci" 'continue-on-error: true  # lint' 'lint prod encore autorisé à échouer'
+reject_fixed "$root/.github/workflows/cms-staging.yml" 'continue-on-error: true  # aligné ci.yml : lint' 'lint staging encore autorisé à échouer'
 
 plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)
 backup_line=$(grep -nF '/home/brunon5/all-cron/backups/prod-r2-backup.sh' "$ci" | cut -d: -f1)
