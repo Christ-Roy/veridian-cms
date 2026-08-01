@@ -73,6 +73,8 @@ require_fixed "$ci" 'Sharp runtime smoke' 'smoke Sharp image prod absent'
 require_fixed "$staging" 'Sharp runtime smoke' 'smoke Sharp image staging absent'
 require_fixed "$ci" 'pré-pull prod impossible après 3 tentatives' 'retry pré-pull prod absent'
 require_fixed "$staging" 'pré-pull staging impossible après 3 tentatives' 'retry pré-pull staging absent'
+require_fixed "$staging" 'tags: tag:ci-github' 'tag Tailscale CI canonique absent'
+reject_fixed "$staging" 'tags: tag:ci$' 'ancien tag Tailscale tag:ci encore présent'
 reject_fixed "$trivyignore" 'CVE-2026-33671' 'ancienne exception picomatch encore présente'
 
 plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)
