@@ -1,7 +1,7 @@
 name: Emergency Revert (Git)
 
 # Déclenché par emergency-rollback.yml après un rollback Docker.
-# Crée une PR de revert du SHA fautif, l'auto-merge, et freeze main jusque-là.
+# Crée une PR de revert du SHA fautif et active son auto-merge.
 # Cf CI-ARCHITECTURE.md §17.1 — règle "rollback = revert Git automatique".
 
 on:
@@ -50,7 +50,7 @@ jobs:
             exit 1
           }
           git push origin "$BRANCH"
-          echo "revert-branch=$BRANCH" >> $GITHUB_ENV
+          echo "REVERT_BRANCH=$BRANCH" >> "$GITHUB_ENV"
 
       - name: Create + auto-merge revert PR
         env:
@@ -65,14 +65,17 @@ jobs:
           Will auto-merge when CI green. Do not push to main until merged.
           EOF
           )
-          gh pr create \
-            --title "revert: auto-revert ${FAULTY_SHA:0:8} (rollback prod)" \
-            --body "$BODY" \
-            --label "auto-revert" \
-            --label "critical" \
-            --head "$revert_branch" \
-            --base main || true
-          gh pr merge --auto --squash --delete-branch "$revert_branch" || true
+          PR_URL=$(gh pr list --state open --head "$REVERT_BRANCH" \
+            --json url --jq '.[0].url // empty')
+          if [ -z "$PR_URL" ]; then
+            PR_URL=$(gh pr create \
+              --title "revert: auto-revert ${FAULTY_SHA:0:8} (rollback prod)" \
+              --body "$BODY" \
+              --head "$REVERT_BRANCH" \
+              --base main)
+          fi
+          echo "revert PR: $PR_URL"
+          gh pr merge --auto --squash --delete-branch "$PR_URL"
 
       - name: Telegram alert
         if: always()

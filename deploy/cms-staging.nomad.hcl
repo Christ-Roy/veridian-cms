@@ -38,8 +38,11 @@ job "cms-staging" {
       mode = "bridge"
       # host_network tailscale : le port CNI bind sur l'IP Tailscale du nœud
       # uniquement → app injoignable en public, Traefik route via Tailscale.
+      # Le port doit rester stable : le routeur Sablier scale-to-zero l'utilise
+      # aussi quand le job est à count=0 et qu'aucun service Nomad n'existe.
       port "http" {
         to           = 3000
+        static       = 19094
         host_network = "tailscale"
       }
     }
@@ -97,9 +100,31 @@ EOH
 
     # --- App Payload 3 (image GHCR staging, tag injecté par la CI) ---
     task "cms" {
-      driver = "docker"
+      driver         = "docker"
+      shutdown_delay = "10s"
+      kill_timeout   = "30s"
+      # Check lié à la tâche : Nomad redémarre l'app seule après quatre échecs,
+      # jamais la tâche PostgreSQL voisine.
+      service {
+        name     = "cms-staging-selfheal"
+        provider = "nomad"
+        port     = "http"
+        tags     = ["traefik.enable=false"]
+        check {
+          type     = "http"
+          path     = "/api/health"
+          interval = "15s"
+          timeout  = "5s"
+          check_restart {
+            limit           = 4
+            grace           = "180s"
+            ignore_warnings = false
+          }
+        }
+      }
       config {
         image = "ghcr.io/christ-roy/veridian-cms:${var.image_tag}"
+        init  = true
         ports = ["http"]
         volumes = [
           "/opt/veridian-staging/cms/media:/app/media",
@@ -138,7 +163,9 @@ EOH
       }
       resources {
         cpu        = 500
-        memory     = 1024
+        # Mesuré live le 2026-08-01 : 47 Mio RSS / 72 Mio avec cache.
+        # 128 Mio réserve correctement le scheduler ; memory_max garde le pic.
+        memory     = 128
         memory_max = 3000
       }
     }
