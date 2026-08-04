@@ -56,17 +56,36 @@ jobs:
             echo "::error::pas de version antérieure à revert (version=$CUR)"
             exit 1
           fi
-          PREV=$((CUR - 1))
-          echo "revert cms : version $CUR → $PREV"
-          EVAL=$(/usr/bin/nomad job revert -detach cms "$PREV" 2>&1 | grep -oP 'Evaluation ID:\s+\K\S+' || true)
-          echo "eval: ${EVAL:-none}"
+
+          # Revenir à la dernière version stable antérieure, pas simplement à
+          # CUR-1 qui peut être une soumission échouée ou jamais stabilisée.
+          PREV=$(/usr/bin/nomad job history -json cms \
+            | jq -r --argjson current "$CUR" \
+              '[.[] | select(.Stable == true and .Version < $current) | .Version] | max // empty')
+          if [ -z "$PREV" ]; then
+            echo "::error::aucune version stable antérieure à $CUR"
+            exit 1
+          fi
+          echo "revert cms : version $CUR → version stable $PREV"
+          REVERT_OUTPUT=$(/usr/bin/nomad job revert -detach cms "$PREV" 2>&1)
+          printf '%s\n' "$REVERT_OUTPUT"
+          EVAL=$(printf '%s\n' "$REVERT_OUTPUT" | grep -oP 'Evaluation ID:\s+\K\S+' || true)
+          if [ -z "$EVAL" ]; then
+            echo "::error::rollback soumis sans Evaluation ID"
+            exit 1
+          fi
+          echo "eval: $EVAL"
           DEP=""
           for i in $(seq 1 15); do
             DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
             [ -n "$DEP" ] && break
             sleep 2
           done
-          [ -n "$DEP" ] && /usr/bin/nomad deployment status -monitor "$DEP" || echo "pas de deployment (no-op)"
+          if [ -z "$DEP" ]; then
+            echo "::error::rollback sans Deployment ID après 30s"
+            exit 1
+          fi
+          /usr/bin/nomad deployment status -monitor "$DEP"
           REMOTE
 
       - name: Wait for rollback healthy

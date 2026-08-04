@@ -129,8 +129,8 @@ async function main() {
 
   let created = 0,
     updated = 0,
-    skipped = 0,
     errors = 0
+  const skipped = 0
 
   for (const p of partners) {
     try {

@@ -31,13 +31,14 @@ if [ -z "$HEAD_ANCESTORS" ]; then
   exit 1
 fi
 
-# Récupère les 20 derniers runs staging conclude=success, branche=staging
+# La branche source n'est pas un critère de sécurité : un workflow_dispatch sur
+# le SHA candidat est précisément la preuve utile avant promotion. Le SHA reste
+# obligatoirement vérifié ci-dessous comme ancêtre du HEAD courant.
 LAST_STAGING_RUNS=$(gh run list \
   --repo "$REPO" \
   --workflow "$STAGING_WORKFLOW" \
-  --branch staging \
   --status success \
-  --limit 20 \
+  --limit 50 \
   --json databaseId,headSha,createdAt 2>/dev/null || echo '[]')
 
 if [ "$LAST_STAGING_RUNS" = "[]" ] || [ -z "$LAST_STAGING_RUNS" ]; then

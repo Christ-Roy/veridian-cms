@@ -19,9 +19,19 @@ variable "image_tag" {
 job "cms" {
   datacenters = ["veridian-eu"]
   type        = "service"
+  priority    = 80
 
   group "cms" {
     count = 1
+
+    # Les pannes transitoires sont absorbées par Nomad. Le mode delay évite
+    # une boucle de crash agressive tout en laissant dix tentatives sur 15 min.
+    restart {
+      attempts = 10
+      interval = "15m"
+      delay    = "20s"
+      mode     = "delay"
+    }
 
     # Épinglé à ovh-prod : volumes bind (pgdata/media) sur /opt/veridian-lab/cms
     # de ce nœud uniquement → un stateful à volume local ne se reschedule pas.
@@ -44,8 +54,10 @@ job "cms" {
         "traefik.enable=true",
         "traefik.http.routers.cms.rule=Host(`cms-lab.veridian.site`)",
         "traefik.http.routers.cms.entrypoints=web",
+        "traefik.http.routers.cms.middlewares=internal-only@nomad",
         "traefik.http.routers.cmssec.rule=Host(`cms-lab.veridian.site`)",
         "traefik.http.routers.cmssec.entrypoints=websecure",
+        "traefik.http.routers.cmssec.middlewares=internal-only@nomad",
         "traefik.http.routers.cmssec.tls=true",
         "traefik.http.routers.cmssec.tls.certresolver=letsencrypt",
         "traefik.http.routers.cmssec.tls.domains[0].main=veridian.site",
@@ -91,9 +103,33 @@ EOH
 
     # --- App Payload 3 (image GHCR CI, tag injecté par la CI) ---
     task "cms" {
-      driver = "docker"
+      driver         = "docker"
+      shutdown_delay = "10s"
+      kill_timeout   = "30s"
+
+      # Le check d'ingress TCP protège le routage. Ce check applicatif séparé
+      # redémarre uniquement Payload si son endpoint de santé reste en échec.
+      service {
+        name     = "cms-selfheal"
+        provider = "nomad"
+        port     = "http"
+        tags     = ["traefik.enable=false"]
+        check {
+          type     = "http"
+          path     = "/api/health"
+          interval = "15s"
+          timeout  = "5s"
+          check_restart {
+            limit           = 4
+            grace           = "180s"
+            ignore_warnings = false
+          }
+        }
+      }
+
       config {
         image = "ghcr.io/christ-roy/veridian-cms:${var.image_tag}"
+        init  = true
         ports = ["http"]
         volumes = [
           "/opt/veridian-lab/cms/media:/app/media",
@@ -132,7 +168,9 @@ EOH
       }
       resources {
         cpu        = 500
-        memory     = 1024
+        # Pic RSS du groupe observé autour de 243 MB. La réservation gouverne
+        # le placement ; le plafond de 7 GB laisse absorber les pics ponctuels.
+        memory     = 384
         memory_max = 7000
       }
     }
