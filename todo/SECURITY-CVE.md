@@ -1,33 +1,33 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-08-03 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-08-03
-> **CVE bruts détectés** : 35 (avant filtrage)
+> **Dernier run** : 2026-08-04 04:21 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-08-04
+> **CVE bruts détectés** : 42 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **6 MEDIUM** — récap, pas urgent
-- 🟢 **27 NOISE** — annexe collapse
+- 🟡 **7 MEDIUM** — récap, pas urgent
+- 🟢 **33 NOISE** — annexe collapse
 
 ✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟡 MEDIUM — 6 CVE en 3 groupes
+## 🟡 MEDIUM — 7 CVE en 3 groupes
 
-### 1. `fast-uri` — 3.1.2 → **4.1.1**
+### 1. `fast-uri` — 3.1.2 → **4.1.2**
 
-- **CVE** : `CVE-2026-16221` (HIGH/SSRF)
+- **CVE** : `CVE-2026-16221` (HIGH/SSRF), `CVE-2026-18446` (HIGH/SSRF)
 - **Type** : SSRF
 - **Score max** : 15
 - **Title** : Impact: fast-uri versions from 2.3.1 through 4.1.0 (including the 3.x  ...
 - **Source** : `pnpm-lock.yaml`
-- **Fix** : `pnpm up fast-uri` (jusqu'à >= `4.1.1`)
+- **Fix** : `pnpm up fast-uri` (jusqu'à >= `4.1.2`)
 
 ### 2. `next` — 16.2.10 → **16.2.11**
 
@@ -50,10 +50,10 @@
 
 ---
 
-## 🟢 NOISE filtré (27 CVE)
+## 🟢 NOISE filtré (33 CVE)
 
 <details>
-<summary>Liste complète (8 groupes — clique pour déplier)</summary>
+<summary>Liste complète (9 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
@@ -62,8 +62,9 @@
 | `js-yaml` | 4.1.1 | 4.3.0 | 2 | 5 |
 | `next` | 16.2.10 | 16.2.11 | 6 | 5 |
 | `sharp` | 0.34.2 | 0.35.0 | 1 | 5 |
+| `undici` | 8.7.0 | 8.9.0 | 5 | 5 |
 | `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
-| `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
+| `postcss` | 8.4.31 | 8.5.23 | 2 | 4 |
 | `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
 
 </details>
