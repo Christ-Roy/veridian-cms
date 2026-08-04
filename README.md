@@ -52,13 +52,14 @@ PORT=3001 npm run dev
 git add -A
 git commit -m "ui(cms): polish sidebar + preview pane"
 git push
-# → Dokploy détecte le push, rebuild et redéploie veridian-cms-prod (~2-3 min)
+# → déploiement prod = cluster Nomad : `nomad-v deploy <job cms>` (skill /nomad,
+#   job IaC dans ~/nomad-veridian/jobs/<tier>/). Dokploy décommissionné 2026-07-10.
 ```
 
 ## Variables d'env
 
 - `.env.development` — committé, dev local (DB locale, secrets factices)
-- `.env.production` — sur Dokploy uniquement, jamais en local
+- `.env.production` — injecté au runtime via Nomad Variable (`nomad/jobs/<job cms>` + `template{env=true}`), jamais en local
 - `.env.example` — template pour onboarding
 
 ## Fichiers clés

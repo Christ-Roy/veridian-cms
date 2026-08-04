@@ -1,7 +1,10 @@
 # To use this Dockerfile, you have to set `output: 'standalone'` in your next.config.mjs file.
 # From https://github.com/vercel/next.js/blob/canary/examples/with-docker/Dockerfile
 
-FROM node:22.17.0-alpine AS base
+FROM node:22.22.3-alpine3.23 AS base
+
+# Bump packages au max d'Alpine pour fixer CVE OpenSSL/musl/zlib
+RUN apk upgrade --no-cache
 
 # Install dependencies only when needed
 FROM base AS deps
@@ -12,11 +15,13 @@ WORKDIR /app
 # Install dependencies based on the preferred package manager
 COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
 RUN \
-  if [ -f yarn.lock ]; then yarn --frozen-lockfile; \
-  elif [ -f package-lock.json ]; then npm ci; \
-  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && corepack prepare pnpm@10.33.0 --activate && pnpm i --frozen-lockfile; \
+  if [ -f yarn.lock ]; then yarn --frozen-lockfile --ignore-scripts; \
+  elif [ -f package-lock.json ]; then npm ci --ignore-scripts; \
+  elif [ -f pnpm-lock.yaml ]; then corepack enable pnpm && corepack prepare pnpm@10.33.0 --activate && pnpm i --frozen-lockfile --ignore-scripts; \
   else echo "Lockfile not found." && exit 1; \
   fi
+# Rebuild les natifs whitelistés (sharp, esbuild, unrs-resolver) après ignore-scripts
+RUN if [ -f pnpm-lock.yaml ]; then pnpm rebuild; fi
 
 
 # Rebuild the source code only when needed
@@ -39,11 +44,31 @@ RUN \
   else echo "Lockfile not found." && exit 1; \
   fi
 
+# Le traceur standalone de Next copie le binding sharp mais omet parfois la
+# bibliothèque libvips optionnelle de pnpm. On l'extrait explicitement du stage
+# builder ; le stage runner la réinjecte dans la version réellement résolue.
+RUN set -eux; \
+  sharp_libvips_dir="$(find /app/node_modules/.pnpm \
+    -path '*/node_modules/@img/sharp-libvips-linuxmusl-x64' \
+    -type d -print -quit)"; \
+  test -n "$sharp_libvips_dir"; \
+  find "$sharp_libvips_dir/lib" -name 'libvips-cpp.so.*' | grep -q .; \
+  cp -a "$sharp_libvips_dir/lib" /sharp-libvips
+
 # Production image, copy all the files and run next
 FROM base AS runner
 WORKDIR /app
 
-ENV NODE_ENV production
+ENV NODE_ENV=production
+
+# Le runtime exécute `node server.js` (sortie standalone Next) — npm/npx/corepack
+# ne sont PAS requis. On les retire pour éliminer les CVE de leurs dépendances
+# bundlées dans l'image de base (ex: sigstore CVE-2026-48815) et alléger l'image.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /root/.npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/pnpm /usr/local/bin/pnpx \
+    && test ! -e /usr/local/lib/node_modules/npm \
+    && test ! -e /usr/local/lib/node_modules/corepack
 # Uncomment the following line in case you want to disable telemetry during runtime.
 # ENV NEXT_TELEMETRY_DISABLED 1
 
@@ -64,13 +89,26 @@ RUN mkdir media && chown nextjs:nodejs media
 # https://nextjs.org/docs/advanced-features/output-file-tracing
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder /sharp-libvips /usr/local/lib/sharp
+
+# musl doit connaître le répertoire au démarrage du processus Node ; copier la
+# bibliothèque dans node_modules après coup ne suffit pas au linker dynamique.
+ENV LD_LIBRARY_PATH=/usr/local/lib/sharp
+RUN find /usr/local/lib/sharp -name 'libvips-cpp.so.*' | grep -q .
 
 USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+# Healthcheck : Docker/Dokploy doivent pouvoir évaluer la santé du container.
+# /api/health retourne {"status":"ok"} quand Payload + DB répondent.
+# start-period 60s laisse le temps au boot Next + connexion Postgres.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- --tries=1 --timeout=3 http://127.0.0.1:3000/api/health | grep -q '"status":"ok"' || exit 1
 
 # server.js is created by next build from the standalone output
 # https://nextjs.org/docs/pages/api-reference/next-config-js/output
-CMD HOSTNAME="0.0.0.0" node server.js
+CMD ["node", "server.js"]
