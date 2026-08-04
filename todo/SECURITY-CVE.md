@@ -1,60 +1,71 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-07-15 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-07-15
-> **CVE bruts détectés** : 28 (avant filtrage)
+> **Dernier run** : 2026-08-04 04:21 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-08-04
+> **CVE bruts détectés** : 42 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
 
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
-- 🟡 **2 MEDIUM** — récap, pas urgent
-- 🟢 **25 NOISE** — annexe collapse
+- 🟡 **7 MEDIUM** — récap, pas urgent
+- 🟢 **33 NOISE** — annexe collapse
 
 ✅ **Rien d'urgent.** Quelques items MEDIUM à voir quand t'as 5 min.
 
 
 ---
 
-## 🟡 MEDIUM — 2 CVE en 2 groupes
+## 🟡 MEDIUM — 7 CVE en 3 groupes
 
-### 1. `nodemailer` — 8.0.6 → **9.0.1**
+### 1. `fast-uri` — 3.1.2 → **4.1.2**
 
-- **CVE** : `GHSA-p6gq-j5cr-w38f` (HIGH/SSRF)
+- **CVE** : `CVE-2026-16221` (HIGH/SSRF), `CVE-2026-18446` (HIGH/SSRF)
 - **Type** : SSRF
 - **Score max** : 15
-- **Title** : Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message
+- **Title** : Impact: fast-uri versions from 2.3.1 through 4.1.0 (including the 3.x  ...
 - **Source** : `pnpm-lock.yaml`
-- **Fix** : `pnpm up nodemailer` (jusqu'à >= `9.0.1`)
+- **Fix** : `pnpm up fast-uri` (jusqu'à >= `4.1.2`)
 
-### 2. `undici` — 7.24.4 → **8.2.0**
+### 2. `next` — 16.2.10 → **16.2.11**
 
-- **CVE** : `CVE-2026-6734` (HIGH/Data leak)
+- **CVE** : `CVE-2026-64642` (HIGH/Auth bypass), `CVE-2026-64645` (HIGH/SSRF), `CVE-2026-64649` (HIGH/SSRF)
+- **Type** : Auth bypass, SSRF
+- **Score max** : 15
+- **Title** : next: Next.js: Authentication bypass leading to unauthorized access
+- **Source** : `pnpm-lock.yaml`
+- **Fix** : `pnpm up next` (jusqu'à >= `16.2.11`)
+
+### 3. `postcss` — 8.4.31 → **8.5.18**
+
+- **CVE** : `CVE-2026-45623` (HIGH/Data leak), `GHSA-r28c-9q8g-f849` (HIGH/Data leak)
 - **Type** : Data leak
 - **Score max** : 10
-- **Title** : undici: undici: Information disclosure and data integrity issues due to incorrect Socks5ProxyAgent connection routing
+- **Title** : postcss: PostCSS: Information disclosure and denial of service via crafted CSS input
 - **Source** : `pnpm-lock.yaml`
-- **Fix** : `pnpm up undici` (jusqu'à >= `8.2.0`)
+- **Fix** : `pnpm up postcss` (jusqu'à >= `8.5.18`)
 
 
 ---
 
-## 🟢 NOISE filtré (25 CVE)
+## 🟢 NOISE filtré (33 CVE)
 
 <details>
-<summary>Liste complète (7 groupes — clique pour déplier)</summary>
+<summary>Liste complète (9 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
-| `undici` | 7.24.4 | 8.5.0 | 4 | 5 |
-| `ws` | 8.20.0 | 8.21.0 | 2 | 5 |
+| `fast-uri` | 3.1.2 | 4.0.1 | 1 | 5 |
+| `immutable` | 4.3.8 | 5.1.8 | 2 | 5 |
+| `js-yaml` | 4.1.1 | 4.3.0 | 2 | 5 |
+| `next` | 16.2.10 | 16.2.11 | 6 | 5 |
+| `sharp` | 0.34.2 | 0.35.0 | 1 | 5 |
+| `undici` | 8.7.0 | 8.9.0 | 5 | 5 |
 | `dompurify` | 3.2.7 | 3.4.11 | 13 | 4 |
-| `postcss` | 8.4.31 | 8.5.10 | 1 | 4 |
+| `postcss` | 8.4.31 | 8.5.23 | 2 | 4 |
 | `uuid` | 10.0.0 | 13.0.1 | 1 | 4 |
-| `js-yaml` | 4.1.1 | 4.2.0 | 1 | 2 |
-| `nodemailer` | 8.0.6 | 8.0.9 | 3 | 2 |
 
 </details>
 

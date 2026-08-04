@@ -21,6 +21,10 @@ job "cms-staging" {
   group "cms" {
     count = 1
 
+    meta = {
+      "sablier.enable" = "true"
+    }
+
     # Épinglé à ovh-dev : volumes bind (pgdata/media) sur /opt/veridian-staging/cms.
     constraint {
       attribute = "${meta.provider}"
