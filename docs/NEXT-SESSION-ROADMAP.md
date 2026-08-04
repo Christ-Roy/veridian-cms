@@ -1,5 +1,13 @@
 # Prochaine session — Migration Prod + CI/CD + E2E
 
+> ⚠️ OBSOLÈTE (Dokploy décommissionné 2026-07-10) → déploiement = nomad-v / skill /nomad. Bloc historique.
+>
+> Ce plan (posé le 2026-04-24) décrivait la migration initiale du CMS en prod
+> **sur Dokploy** (`/etc/dokploy/compose/...`, services Dokploy, deploy SSH → docker
+> compose). Le CMS prod tourne aujourd'hui sur le cluster HashiCorp Nomad ; toute la
+> recette Dokploy ci-dessous (services, compose IDs, secrets `DOKPLOY_*`, deploy SSH)
+> ne s'applique plus. Conservé pour l'historique / la logique CI-E2E encore valable.
+
 > **Pose de bases le 2026-04-24 soir.** À exécuter dans cet ordre strict la
 > prochaine session. Chaque phase a ses **prérequis**, son **rollback**,
 > et ses **checks de validation**.

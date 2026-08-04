@@ -164,10 +164,21 @@ export const Media: CollectionConfig = {
     mimeTypes: ['image/*'],
     focalPoint: true,
     crop: true,
+    // Width-only : Sharp resize au ratio natif (jamais de crop physique).
+    // Avant on avait width+height fixes (400×300, 768×512, 1920×1080) +
+    // `position: 'centre'` → toute image paysage (produit TPE, alim, etc.)
+    // se faisait amputer en dur dans le fichier. Le crop CSS (object-fit:
+    // contain) ne pouvait rien faire car les fichiers eux-mêmes étaient
+    // découpés sur disque.
+    // Avec height: undefined, Sharp ne touche qu'à la largeur et garde le
+    // ratio d'origine. Le crop visuel reste possible côté front via CSS si
+    // une card carrée le demande, mais sur les fichiers source du média
+    // (qu'on affiche dans la preview CMS et que le site peut servir en
+    // taille full), l'image complète est toujours préservée.
     imageSizes: [
-      { name: 'thumbnail', width: 400, height: 300, position: 'centre' },
-      { name: 'card', width: 768, height: 512, position: 'centre' },
-      { name: 'hero', width: 1920, height: 1080, position: 'centre' },
+      { name: 'thumbnail', width: 400 },
+      { name: 'card', width: 768 },
+      { name: 'hero', width: 1920 },
     ],
   },
 }
