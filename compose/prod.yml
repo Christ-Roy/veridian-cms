@@ -1,30 +1,28 @@
+# ============================================================================
+# compose/prod.yml — Override production CMS (cms.veridian.site)
+# ============================================================================
+#
+# Combiné avec base.yml :
+#   docker compose -f compose/base.yml -f compose/prod.yml up -d
+#
+# Variables d'env attendues (.env chargé par Dokploy) :
+#   POSTGRES_PASSWORD, PAYLOAD_SECRET, SERVER_URL, SMTP_*, ...
+# ============================================================================
+
 name: veridian-cms-prod
 
 services:
   cms:
+    container_name: veridian-cms-prod
     image: veridian/cms-prod:latest
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
-    pull_policy: always
-    restart: unless-stopped
-    # ─── Fusible 60 % VM (politique Veridian) ──────────────────────────
-    # VM prod = 11 GB RAM / 6 CPU → 60 % = 6.6 GB / 3.6 CPU max par app.
-    # Si une app fuit, OOM-killer la cible elle seule sans tomber la VM.
-    # Monitoring : veridian-hub/scripts/ops/claude-hooks/infra-status.sh
-    mem_limit: 6600m
-    cpus: 3.6
     env_file:
-      - .env
+      - ../.env
     environment:
-      NODE_ENV: production
-      PORT: "3000"
       SERVER_URL: ${SERVER_URL:-https://cms.veridian.site}
       DATABASE_URL: postgresql://${POSTGRES_USER:-cms}:${POSTGRES_PASSWORD}@cms-postgres:5432/${POSTGRES_DB:-veridian_cms}
-      NODE_OPTIONS: "--max-old-space-size=1024"
-    depends_on:
-      cms-postgres:
-        condition: service_healthy
     volumes:
       - cms-media-prod:/app/media
     networks:
@@ -40,11 +38,7 @@ services:
       - "traefik.http.services.veridian-cms-prod.loadbalancer.server.port=3000"
 
   cms-postgres:
-    image: postgres:16-alpine@sha256:20edbde7749f822887a1a022ad526fde0a47d6b2be9a8364433605cf65099416
-    restart: unless-stopped
-    # Fusible 60 % VM — cf service `cms` ci-dessus
-    mem_limit: 6600m
-    cpus: 3.6
+    container_name: veridian-cms-postgres-prod
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-veridian_cms}
       POSTGRES_USER: ${POSTGRES_USER:-cms}
@@ -53,11 +47,6 @@ services:
       - cms-pgdata-prod:/var/lib/postgresql/data
     networks:
       - default
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cms} -d ${POSTGRES_DB:-veridian_cms}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   cms-pgdata-prod:

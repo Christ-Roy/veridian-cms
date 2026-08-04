@@ -1,0 +1,277 @@
+name: CMS Staging (Nomad)
+
+# Pipeline STAGING GitOps Nomad (remplace l'ancien deploy compose Dokploy dev-pub,
+# décommissionné 2026-07-10). Sur push `staging` :
+#   1. Tests lourds (lint + intégration Vitest) — gate avant tout deploy.
+#   2. Build + push image staging GHCR (staging-<sha>).
+#   3. Deploy Nomad staging (SSH bastion → pré-pull ovh-dev → nomad run + monitor).
+#   4. Smoke lourd via Tailscale (health/admin/tenants/partners) sur cms.staging.veridian.site.
+# Env staging PROCHE DE LA PROD : même image, Postgres co-localisé, données clonées.
+# La promotion staging→main (→ deploy prod via ci.yml) reste une PR reviewée.
+
+on:
+  push:
+    branches: [staging]
+    paths-ignore:
+      - 'todo/**'
+      - 'docs/**'
+      - 'runbooks/**'
+      - '_archive/**'
+      - '**/*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: cms-staging-deploy
+  cancel-in-progress: false  # un deploy Nomad en cours ne doit pas être interrompu
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: christ-roy/veridian-cms
+  STAGING_URL: https://cms.staging.veridian.site
+
+jobs:
+  # ── Tests lourds : gate avant deploy (postgres + migrations + intégration) ──
+  test:
+    name: Tests lourds (migrations + intégration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: veridian_cms_test
+          POSTGRES_USER: cms
+          POSTGRES_PASSWORD: testpass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      DATABASE_URL: postgresql://cms:testpass@localhost:5432/veridian_cms_test
+      PAYLOAD_SECRET: ci_secret_not_for_prod_64chars_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      PAYLOAD_DB_PUSH: "false"
+      NODE_ENV: test
+      SERVER_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Lint
+        run: pnpm lint
+      - name: Apply Payload migrations
+        run: pnpm exec payload migrate
+      - name: Tests d'intégration (Vitest)
+        run: pnpm run test:int
+
+  # ── Build + push image staging ────────────────────────────────────────────
+  build:
+    name: Build & push image staging
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      image-tag: ${{ steps.tag.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Compute image tag
+        id: tag
+        run: |
+          SHA7=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "image-tag=staging-$SHA7" >> $GITHUB_OUTPUT
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push runner (with retry)
+        uses: nick-fields/retry@v4
+        with:
+          timeout_minutes: 25
+          max_attempts: 3
+          retry_wait_seconds: 30
+          retry_on: error
+          command: |
+            docker buildx build \
+              --target runner \
+              --push \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image-tag }} \
+              -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-latest \
+              -f ./Dockerfile \
+              .
+
+      - name: Sharp runtime smoke
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.image-tag }}"
+          docker pull "$IMAGE"
+          docker run --rm --network none --entrypoint node "$IMAGE" -e '
+            const sharp = require("sharp");
+            sharp({ create: { width: 1, height: 1, channels: 4, background: "#000000" } })
+              .png().toBuffer()
+              .then(() => console.log("sharp runtime OK"))
+              .catch((error) => { console.error(error); process.exit(1); });
+          '
+
+  # ── Deploy Nomad staging + smoke lourd via Tailscale ──────────────────────
+  deploy:
+    name: Deploy Nomad staging (SSH bastion)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: staging
+      url: https://cms.staging.veridian.site/admin
+    env:
+      JOB_FILE: deploy/cms-staging.nomad.hcl
+      REMOTE_HCL: /tmp/cms-staging-${{ github.run_id }}.nomad.hcl
+      IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install SSH key (bastion Nomad)
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for attempt in 1 2 3; do
+            if ssh-keyscan -T 15 -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              exit 0
+            fi
+            echo "ssh-keyscan tentative $attempt/3 en échec"
+            sleep 3
+          done
+          echo "::error::impossible de récupérer la clé SSH du bastion"
+          exit 1
+
+      - name: Copy HCL to bastion
+        run: |
+          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            "$JOB_FILE" \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}:$REMOTE_HCL"
+
+      - name: nomad job plan (dry-run) + run -detach + monitor
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "IMAGE_TAG='${IMAGE_TAG}' REMOTE_HCL='${REMOTE_HCL}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          source ~/credentials/nomad-bastion.env
+          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
+
+          echo "== nomad job validate =="
+          /usr/bin/nomad job validate -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL"
+
+          echo "== nomad job plan (diff, inoffensif) =="
+          set +e
+          PLAN_OUTPUT=$(/usr/bin/nomad job plan -no-color \
+            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" 2>&1)
+          PLAN_STATUS=$?
+          set -e
+          printf '%s\n' "$PLAN_OUTPUT"
+          case "$PLAN_STATUS" in
+            0) echo "plan sans création ou destruction d'allocation" ;;
+            1) echo "plan avec remplacement d'allocation attendu" ;;
+            *) echo "::error::nomad job plan staging a échoué (code=$PLAN_STATUS)"; exit "$PLAN_STATUS" ;;
+          esac
+
+          MODIFY_INDEX=$(printf '%s\n' "$PLAN_OUTPUT" \
+            | sed -n 's/^Job Modify Index: \([0-9][0-9]*\)$/\1/p' | tail -1)
+          RUN_INDEX_ARGS=()
+          [ -n "$MODIFY_INDEX" ] && RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")
+
+          # Pré-pull sur ovh-dev après validation du plan. -n est impératif :
+          # sans lui, ce SSH consommerait la suite du heredoc distant.
+          echo "== pré-pull image staging sur ovh-dev =="
+          PULLED=""
+          for attempt in 1 2 3; do
+            if timeout 180s ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
+              -o StrictHostKeyChecking=accept-new dev-pub \
+              "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"; then
+              PULLED=1
+              break
+            fi
+            echo "pré-pull staging tentative $attempt/3 en échec"
+            sleep $((attempt * 10))
+          done
+          [ -n "$PULLED" ] || { echo "::error::pré-pull staging impossible après 3 tentatives"; exit 1; }
+
+          echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
+          EVAL=$(/usr/bin/nomad job run -detach "${RUN_INDEX_ARGS[@]}" \
+            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" \
+            | grep -oP 'Evaluation ID:\s+\K\S+')
+          echo "eval: ${EVAL:-none}"
+          DEP=""
+          for i in $(seq 1 15); do
+            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
+            [ -n "$DEP" ] && break
+            sleep 2
+          done
+          if [ -z "$DEP" ]; then
+            echo "Pas de déploiement créé (job inchangé = no-op) → OK"
+          else
+            echo "deployment: $DEP — monitoring jusqu'à terminal…"
+            /usr/bin/nomad deployment status -monitor "$DEP"
+          fi
+          REMOTE
+
+      - name: Cleanup remote HCL
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "rm -f '$REMOTE_HCL'" || true
+
+      # Staging privé Tailscale : un run ne peut servir de preuve de promotion
+      # que si l'API et les routes métier répondent réellement depuis le tailnet.
+      - name: Tailscale (connect runner to tailnet)
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci-github
+          version: latest
+
+      - name: Smoke lourd staging (health/admin/tenants/partners)
+        env:
+          CMS_ADMIN_API_KEY: ${{ secrets.CMS_ADMIN_API_KEY_PROD }}
+        run: |
+          set -e
+          echo "== health (retry 120s) =="
+          ok=""
+          for i in $(seq 1 12); do
+            if curl -sf --max-time 10 "$STAGING_URL/api/health" | grep -q '"status":"ok"'; then ok=1; break; fi
+            sleep 10
+          done
+          [ -n "$ok" ] || { echo "::error::health KO"; exit 1; }
+          echo "✓ health"
+          echo "== admin 200 =="
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$STAGING_URL/admin"); [ "$code" = 200 ] || { echo "::error::admin $code"; exit 1; }
+          echo "✓ admin"
+          echo "== API tenants + partners =="
+          curl -sf "$STAGING_URL/api/partners?limit=1&depth=0" | grep -q '"docs"' || { echo "::error::partners KO"; exit 1; }
+          echo "✓ smoke lourd OK — staging valide"
+
+      - name: Telegram notify
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
+          ICON="✓"; [ "${{ job.status }}" != "success" ] && ICON="✗"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=$ICON CMS staging ${{ job.status }} — ${IMAGE_TAG} (${GITHUB_SHA:0:7})" >/dev/null || true

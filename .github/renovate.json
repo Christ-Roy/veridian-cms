@@ -1,0 +1,57 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard",
+    ":semanticCommits"
+  ],
+  "schedule": ["before 6am on monday"],
+  "timezone": "Europe/Paris",
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "matchUpdateTypes": ["minor"],
+      "matchCurrentVersion": "!/^0/",
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "addLabels": ["needs-human-review"]
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres", "redis", "traefik", "node"],
+      "automerge": false,
+      "addLabels": ["needs-human-review", "base-image"]
+    },
+    {
+      "matchPackageNames": ["payload", "@payloadcms/**"],
+      "groupName": "Payload CMS",
+      "automerge": false,
+      "addLabels": ["payload-upgrade", "needs-human-review"]
+    },
+    {
+      "matchPackageNames": ["next", "react", "react-dom"],
+      "automerge": false,
+      "addLabels": ["framework", "needs-human-review"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "automerge": true,
+    "labels": ["security"]
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"]
+  },
+  "postUpdateOptions": ["pnpmDedupe"]
+}

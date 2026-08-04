@@ -1,17 +1,28 @@
 #!/usr/bin/env sh
 # Standard CI Veridian — pre-push hook
-# Refuse le push si fichier critique modifié sans test correspondant.
+# Refuse le push si :
+#   - fichier critique modifié sans test correspondant (test-mapping)
+#   - migration DB destructive sans pattern Expand & Contract
 # JAMAIS --no-verify (Constitution CI §3).
 
+BASE_REF="${BASE_REF:-origin/$(git rev-parse --abbrev-ref HEAD)}"
+if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1; then
+  BASE_REF="origin/main"
+fi
+export BASE_REF
+
+FAIL=0
+
 if [ -x scripts/ci/check-test-mapping.sh ]; then
-  BASE_REF="${BASE_REF:-origin/$(git rev-parse --abbrev-ref HEAD)}"
-  # Si la branche distante n'existe pas (premier push), compare contre origin/main
-  if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1; then
-    BASE_REF="origin/main"
+  if ! scripts/ci/check-test-mapping.sh; then
+    FAIL=1
   fi
-  export BASE_REF
-  exec scripts/ci/check-test-mapping.sh
 fi
 
-echo "⚠ scripts/ci/check-test-mapping.sh absent ou non exécutable"
-exit 0
+if [ -x scripts/ci/check-migration-safety.sh ]; then
+  if ! scripts/ci/check-migration-safety.sh; then
+    FAIL=1
+  fi
+fi
+
+exit $FAIL

@@ -1,0 +1,127 @@
+name: Emergency Rollback (prod)
+
+# Déclenché par :
+#   - Le job deploy-prod du workflow ci.yml si smoke/health échoue
+#   - Alertes monitoring via webhook GitHub `repository_dispatch`.
+#
+# Action (Nomad GitOps — l'ancien deploy Dokploy est décommissionné 2026-07-10) :
+#   1. `nomad job revert cms <version-1>` sur le bastion → restaure la version de
+#      job précédente (donc l'image d'avant). Note : le job cms a `auto_revert =
+#      true`, qui couvre déjà le cas "nouveau deploy jamais healthy". Ce workflow
+#      est le filet pour un breakage POST-deploy (alloc healthy mais app cassée).
+#   2. Trigger emergency-revert.yml pour le revert Git.
+#   3. Telegram alert.
+
+on:
+  repository_dispatch:
+    types: [rollback_triggered]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Raison du rollback manuel"
+        required: true
+        default: "manual"
+
+concurrency:
+  group: cms-rollback-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  rollback:
+    if: github.event.client_payload.app == 'cms' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Install SSH key (bastion Nomad)
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: nomad job revert (version précédente)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          source ~/credentials/nomad-bastion.env
+          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
+          CUR=$(/usr/bin/nomad job inspect cms | python3 -c 'import sys,json;print(json.load(sys.stdin)["Job"]["Version"])')
+          if [ "$CUR" -lt 1 ]; then
+            echo "::error::pas de version antérieure à revert (version=$CUR)"
+            exit 1
+          fi
+
+          # Revenir à la dernière version stable antérieure, pas simplement à
+          # CUR-1 qui peut être une soumission échouée ou jamais stabilisée.
+          PREV=$(/usr/bin/nomad job history -json cms \
+            | jq -r --argjson current "$CUR" \
+              '[.[] | select(.Stable == true and .Version < $current) | .Version] | max // empty')
+          if [ -z "$PREV" ]; then
+            echo "::error::aucune version stable antérieure à $CUR"
+            exit 1
+          fi
+          echo "revert cms : version $CUR → version stable $PREV"
+          REVERT_OUTPUT=$(/usr/bin/nomad job revert -detach cms "$PREV" 2>&1)
+          printf '%s\n' "$REVERT_OUTPUT"
+          EVAL=$(printf '%s\n' "$REVERT_OUTPUT" | grep -oP 'Evaluation ID:\s+\K\S+' || true)
+          if [ -z "$EVAL" ]; then
+            echo "::error::rollback soumis sans Evaluation ID"
+            exit 1
+          fi
+          echo "eval: $EVAL"
+          DEP=""
+          for i in $(seq 1 15); do
+            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
+            [ -n "$DEP" ] && break
+            sleep 2
+          done
+          if [ -z "$DEP" ]; then
+            echo "::error::rollback sans Deployment ID après 30s"
+            exit 1
+          fi
+          /usr/bin/nomad deployment status -monitor "$DEP"
+          REMOTE
+
+      - name: Wait for rollback healthy
+        run: |
+          echo "Waiting for cms.veridian.site/api/health post-rollback..."
+          for i in $(seq 1 18); do
+            if curl -sf --max-time 10 https://cms.veridian.site/api/health | grep -q '"status":"ok"'; then
+              echo "✓ Rollback OK after $((i*10))s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::Rollback health failed after 3min — INCIDENT ESCALATION"
+          exit 1
+
+      - name: Trigger auto-revert PR
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GH_AUTOREVERT_PAT || secrets.GITHUB_TOKEN }}
+          event-type: revert_after_rollback
+          client-payload: |
+            {
+              "app": "cms",
+              "sha": "${{ github.event.client_payload.sha || github.sha }}",
+              "reason": "${{ github.event.client_payload.reason || inputs.reason }}"
+            }
+
+      - name: Telegram alert
+        if: always()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TG_TOKEN" ] || [ -z "$TG_CHAT" ]; then exit 0; fi
+          REASON="${{ github.event.client_payload.reason || inputs.reason }}"
+          curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            -d chat_id=${TG_CHAT} \
+            -d "text=🚨 CMS prod ROLLBACK déclenché — raison: ${REASON}" \
+            >/dev/null || true
