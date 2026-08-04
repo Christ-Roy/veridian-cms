@@ -1,0 +1,5 @@
+# VEX statements (Vulnerability EXploitability) — Trivy v0.58+
+# Toute exclusion CVE doit avoir une justification écrite + reviewer + date.
+# Pas de .trivyignore plat. Cf CI-ARCHITECTURE.md §5.
+
+vulnerabilities: []
