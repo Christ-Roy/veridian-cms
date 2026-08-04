@@ -5,7 +5,7 @@
 # (privée Tailscale) et les secrets/DB (staging). Sert cms.staging.veridian.site.
 #
 # Privé Tailscale : `host_network=tailscale` (port bind IP tailnet only) +
-# middleware `internal-only@nomad` (ipAllowList 100.64/10) → 403 hors tailnet.
+# middleware `cmsstg-internal-only@nomad` (ipAllowList tailnet) → 403 hors tailnet.
 # Source de vérité GitOps (dans CE repo) ; la CI injecte var image_tag.
 
 variable "image_tag" {
@@ -57,15 +57,22 @@ job "cms-staging" {
       port     = "http"
       tags = [
         "traefik.enable=true",
-        "traefik.http.middlewares.internal-only.ipallowlist.sourcerange=100.64.0.0/10,127.0.0.1/32",
+        # Middleware NOMMÉ PAR JOB, jamais partagé. Traefik invalide un middleware
+        # déclaré plusieurs fois avec des valeurs divergentes : ce job déclarait
+        # `internal-only` avec une allowlist réduite (sans l'IPv6 Tailscale), alors
+        # qu'asset-bank/linkedin le déclaraient en version complète. Chaque
+        # resoumission de cms-staging mettait donc en 404 les services internes
+        # qui partageaient ce nom (incident du 2026-08-04).
+        # Portée identique aux autres jobs internes, seul le nom est propre à celui-ci.
+        "traefik.http.middlewares.cmsstg-internal-only.ipallowlist.sourcerange=100.64.0.0/10,fd7a:115c:a1e0::/48,172.26.64.0/20,127.0.0.1/32,::1/128",
         "traefik.http.routers.cms-staging.rule=Host(`cms.staging.veridian.site`)",
         "traefik.http.routers.cms-staging.entrypoints=web",
-        "traefik.http.routers.cms-staging.middlewares=internal-only@nomad",
+        "traefik.http.routers.cms-staging.middlewares=cmsstg-internal-only@nomad",
         "traefik.http.routers.cms-stagingsec.rule=Host(`cms.staging.veridian.site`)",
         "traefik.http.routers.cms-stagingsec.entrypoints=websecure",
         "traefik.http.routers.cms-stagingsec.tls=true",
         "traefik.http.routers.cms-stagingsec.tls.certresolver=letsencrypt",
-        "traefik.http.routers.cms-stagingsec.middlewares=internal-only@nomad",
+        "traefik.http.routers.cms-stagingsec.middlewares=cmsstg-internal-only@nomad",
       ]
       check {
         type     = "http"
