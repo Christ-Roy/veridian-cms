@@ -53,15 +53,19 @@ copie de :
 Si la clé SSH OVH est rotée, il faut mettre à jour les autres repos
 extraits aussi (veridian-hub, veridian-prospection, notifuse-deploy).
 
-## Pattern de déploiement (Dokploy GitOps, depuis 2026-05-13)
+## Pattern de déploiement (cluster Nomad, depuis 2026-07-10)
+
+> ⚠️ Le pattern Dokploy GitOps (2026-05-13 → 2026-07-10) est OBSOLÈTE : Dokploy a
+> été décommissionné le 2026-07-10, remplacé par le cluster HashiCorp Nomad
+> Veridian. Déploiement = `nomad-v` (skill /nomad).
 
 ```
-push main → GitHub webhook → Dokploy clone repo → build image → docker compose up
-                                                              ↓
-                                                  container `veridian-cms-prod`
-                                                  recreate avec nouvelle image
+push main → build image GHCR → nomad-v deploy <job cms>
+                                        ↓
+                              Nomad reschedule l'alloc du job CMS
+                              (IaC : ~/nomad-veridian/jobs/<tier>/, sur le bastion)
 ```
 
 CI sur ce repo (`.github/workflows/ci.yml`) :
 - ✅ Active : static (tsc), audit (CVE high/critical), int (vitest), build (GHCR), e2e (Playwright)
-- ❌ Désactivée : deploy (Dokploy s'en charge), smoke (idem)
+- ❌ Désactivée : deploy (piloté par `nomad-v` hors CI), smoke (idem)
