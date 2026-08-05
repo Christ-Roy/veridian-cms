@@ -1,0 +1,49 @@
+# test-coverage-map.yaml — Standard CI Veridian §1
+#
+# Déclare ici les fichiers critiques qui ne suivent PAS la convention canonique
+# de chemin (1 source → 1 test colocalisé au même chemin) mais sont légitimement
+# couverts par un test situé ailleurs (ex : test integration qui exerce un helper).
+#
+# Le hook pre-push check-test-mapping.sh lit ce fichier comme fallback :
+# si une source modifiée n'a pas de test colocalisé, il cherche ici.
+# Au moins UN des `covered_by` doit être modifié dans la même PR.
+#
+# Format strict :
+# - sources:
+#     - <chemin/source/relatif.ts>
+#   covered_by:
+#     - <chemin/test/relatif.test.ts>
+#   reason: |
+#     Justification écrite. Pas de "TODO refactor", expliquer POURQUOI ce test
+#     couvre fonctionnellement le code source.
+#
+# Renovate et agents auto ne peuvent pas ajouter de couverture sans toucher
+# ce fichier. Reviewable comme du code.
+
+- sources:
+    - src/components/BrandPicker/index.tsx
+  covered_by:
+    - tests/int/products-guard-rails.int.spec.ts
+  reason: |
+    BrandPicker est un composant UI client (Payload useField) dont la logique
+    métier (normalize Title Case, alignement casse existante, persistance)
+    est entièrement côté serveur dans le hook `brand.beforeChange` de
+    Products.ts. Les tests int 3.1, 3.2, 3.3, 4.1 exercent exactement ces
+    chemins via payload.create avec différentes casses. Tester le rendu React
+    en vitest+jsdom demanderait de mocker tout l'écosystème @payloadcms/ui
+    (useField, FieldProvider, FormContext) pour zéro signal supplémentaire :
+    la régression métier est attrapée par les tests int existants.
+
+- sources:
+    - src/components/ProductPreview/index.tsx
+  covered_by:
+    - tests/int/products-guard-rails.int.spec.ts
+  reason: |
+    ProductPreview est un composant d'affichage pur : il lit les valeurs du
+    form via useFormFields et rend une card visuelle (HTML + styles inline).
+    Aucune logique métier (pas de mutation, pas de validation, pas d'API
+    autre que fetch /api/media/:id pour l'URL de l'image). Une régression
+    visuelle ne casserait rien fonctionnellement — le produit serait quand
+    même sauvegardé correctement. Les guard-rails Products.ts (validate,
+    slug, brand normalize) sont la vraie source de bugs métier, déjà
+    couverts par products-guard-rails.int.spec.ts.

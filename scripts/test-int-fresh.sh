@@ -18,7 +18,7 @@ docker rm -f "$PG_CONTAINER" >/dev/null 2>&1 || true
 
 echo "==> Start Postgres 16 fresh sur :$PG_PORT"
 docker run -d --name "$PG_CONTAINER" \
-  -p "$PG_PORT:5432" \
+  -p "127.0.0.1:$PG_PORT:5432" \
   -e POSTGRES_DB=veridian_cms_test \
   -e POSTGRES_USER=cms \
   -e POSTGRES_PASSWORD=testpass \
