@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { canCreate, canDelete, canRead, canUpdate } from '../lib/access'
-import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+import { triggerSiteRebuild, triggerSiteRebuildAfterDelete } from '../hooks/triggerSiteRebuild'
 import { uploadWithPreviewAdmin } from '../components/UploadWithPreview/field'
 
 /**
@@ -44,6 +44,7 @@ export const Products: CollectionConfig = {
   },
   hooks: {
     afterChange: [triggerSiteRebuild],
+    afterDelete: [triggerSiteRebuildAfterDelete],
   },
   fields: [
     {
