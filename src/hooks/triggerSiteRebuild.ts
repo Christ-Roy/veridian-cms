@@ -1,4 +1,8 @@
-import type { CollectionAfterChangeHook, GlobalAfterChangeHook } from 'payload'
+import type {
+  CollectionAfterChangeHook,
+  CollectionAfterDeleteHook,
+  GlobalAfterChangeHook,
+} from 'payload'
 
 /**
  * Trigger un rebuild du site quand une page (ou un global header/footer) est
@@ -120,6 +124,30 @@ export const triggerSiteRebuild: CollectionAfterChangeHook = async ({ doc, req }
   let tenant = typeof doc.tenant === 'object' ? doc.tenant : null
 
   // Si tenant est juste un id, le re-fetch pour récupérer cfDeployHook
+  if (!tenant && (typeof doc.tenant === 'number' || typeof doc.tenant === 'string')) {
+    try {
+      tenant = await req.payload.findByID({
+        collection: 'tenants',
+        id: doc.tenant,
+        req,
+      })
+    } catch {
+      tenant = null
+    }
+  }
+
+  await triggerForTenant(tenant as Parameters<typeof triggerForTenant>[0], req.payload.logger)
+  return doc
+}
+
+/**
+ * Hook de suppression — sans lui, supprimer un document (fiche partenaire,
+ * produit…) le laisse en ligne jusqu'au prochain rebuild déclenché par autre
+ * chose.
+ */
+export const triggerSiteRebuildAfterDelete: CollectionAfterDeleteHook = async ({ doc, req }) => {
+  let tenant = typeof doc.tenant === 'object' ? doc.tenant : null
+
   if (!tenant && (typeof doc.tenant === 'number' || typeof doc.tenant === 'string')) {
     try {
       tenant = await req.payload.findByID({

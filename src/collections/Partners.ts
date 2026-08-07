@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { triggerSiteRebuild, triggerSiteRebuildAfterDelete } from '../hooks/triggerSiteRebuild'
 
 /**
  * Collection Partners — section 13 du CMS-DIDIER-READY-TODO.md.
@@ -35,6 +36,12 @@ export const Partners: CollectionConfig = {
     create: ({ req }) => Boolean(req.user),
     update: ({ req }) => Boolean(req.user),
     delete: ({ req }) => Boolean(req.user),
+  },
+  // Sans ça, éditer une fiche partenaire ne rebuild pas le site statique :
+  // le client voit ses modifs dans l'admin mais jamais en ligne.
+  hooks: {
+    afterChange: [triggerSiteRebuild],
+    afterDelete: [triggerSiteRebuildAfterDelete],
   },
   fields: [
     {
