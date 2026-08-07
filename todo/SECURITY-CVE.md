@@ -1,9 +1,9 @@
 # 🔒 Veille CVE automatique — veridian-cms
 
 > **Généré par** : `veridian-infra/.github/workflows/cron-trivy.yml`
-> **Dernier run** : 2026-08-06 04:20 UTC
-> **Run URL** : local-cron@mail.mybigserveur.local:2026-08-06
-> **CVE bruts détectés** : 1 (avant filtrage)
+> **Dernier run** : 2026-08-07 04:20 UTC
+> **Run URL** : local-cron@mail.mybigserveur.local:2026-08-07
+> **CVE bruts détectés** : 2 (avant filtrage)
 > **Scoring** : `veridian-infra/ci/trivy-scoring.yml`
 
 ## TL;DR
@@ -11,20 +11,21 @@
 - 🚨 **0 RED** — fix prioritaire
 - 🔴 **0 HIGH** — action recommandée cette semaine
 - 🟡 **0 MEDIUM** — récap, pas urgent
-- 🟢 **1 NOISE** — annexe collapse
+- 🟢 **2 NOISE** — annexe collapse
 
 ✅ **Aucune action requise.** Rapport régénéré quotidiennement.
 
 
 ---
 
-## 🟢 NOISE filtré (1 CVE)
+## 🟢 NOISE filtré (2 CVE)
 
 <details>
-<summary>Liste complète (1 groupe — clique pour déplier)</summary>
+<summary>Liste complète (2 groupes — clique pour déplier)</summary>
 
 | Package | Installed | Fix | CVE count | Max score |
 |---|---|---|---|---|
+| `js-yaml` | 4.3.0 | 4.3.1 | 1 | 5 |
 | `postcss` | 8.5.18 | 8.5.23 | 1 | 4 |
 
 </details>
