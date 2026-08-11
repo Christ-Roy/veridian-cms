@@ -95,9 +95,9 @@ EOH
         env         = true
       }
       resources {
-        cpu        = 300
+        cpu        = 100
         memory     = 256
-        memory_max = 7000
+        memory_max = 512
       }
     }
 
@@ -167,11 +167,11 @@ EOH
         env         = true
       }
       resources {
-        cpu        = 500
+        cpu = 150
         # Pic RSS du groupe observé autour de 243 MB. La réservation gouverne
-        # le placement ; le plafond de 7 GB laisse absorber les pics ponctuels.
+        # le placement ; le plafond de 512 MB absorbe les pics ponctuels.
         memory     = 384
-        memory_max = 7000
+        memory_max = 512
       }
     }
 
