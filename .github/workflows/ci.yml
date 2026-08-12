@@ -353,8 +353,16 @@ jobs:
           RUN_INDEX_ARGS=()
           [ -n "$MODIFY_INDEX" ] && RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")
 
-          # Le groupe est stateful et redémarre aussi PostgreSQL. Une sauvegarde
-          # R2 fraîche et vérifiée est donc un gate bloquant avant tout run.
+          # Gate de cutover : ce HCL applicatif attend désormais cms-state.
+          # Sans lui, le rendu DATABASE_URL via nomadService serait vide.
+          if ! /usr/bin/nomad job status cms-state >/dev/null 2>&1; then
+            echo "::error::cms-state absent : appliquer le runbook de cutover avant deploy app"
+            exit 1
+          fi
+
+          # Le groupe app ne redémarre plus PostgreSQL, mais modifie un CMS
+          # client prod avec médias locaux. Une sauvegarde R2 fraîche reste un
+          # gate bloquant avant tout run.
           # On réutilise le runner canonique all-cron, sans créer un second cron.
           echo "== sauvegarde PostgreSQL pré-déploiement vers R2 =="
           /home/brunon5/all-cron/backups/prod-r2-backup.sh

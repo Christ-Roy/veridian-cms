@@ -36,7 +36,13 @@ require_fixed "$hcl" 'name     = "cms-selfheal"' 'service self-heal absent'
 require_fixed "$hcl" 'limit           = 4' 'check_restart applicatif absent'
 require_fixed "$hcl" 'init  = true' 'init Docker anti-zombies absent'
 require_fixed "$hcl" 'memory     = 384' 'réservation mémoire app inattendue'
-require_fixed "$hcl" 'memory_max = 7000' 'plafond mémoire app absent'
+require_fixed "$hcl" 'memory_max = 512' 'plafond mémoire app absent'
+reject_fixed "$hcl" 'task "postgres"' 'Postgres ne doit plus recohabiter avec le job app cms'
+require_fixed "$hcl" 'nomadService "cms-postgres"' 'discovery Nomad cms-postgres absente'
+require_fixed "$hcl" 'attempts  = 0' 'app CMS doit rester non-reschedulable tant que media est local'
+require_fixed "$root/deploy/cms-state.nomad.hcl" 'job "cms-state"' 'job cms-state absent'
+require_fixed "$root/deploy/cms-state.nomad.hcl" 'host_network = "tailscale"' 'Postgres cms-state non privé Tailscale'
+require_fixed "$root/deploy/cms-state.nomad.hcl" 'name     = "cms-postgres"' 'service discovery cms-postgres absent'
 
 # Le HCL de test doit conserver les propriétés prouvées du staging canonique.
 # Sans elles, tester une branche feature peut silencieusement dégrader le banc.
@@ -102,5 +108,6 @@ reject_fixed "$revert" '$revert_branch' 'ancienne variable de branche invalide e
 reject_fixed "$revert" 'gh pr merge --auto --squash --delete-branch "$revert_branch" || true' 'échec auto-merge masqué'
 
 bash "$root/scripts/ci/test-check-staging-fresh.sh"
+bash "$root/scripts/ci/check-cms-state-split.sh"
 
 echo 'OK: invariants GitOps CMS prod et rollback fail-closed'
