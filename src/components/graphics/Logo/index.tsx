@@ -15,25 +15,25 @@ export const Logo: React.FC = () => (
       color: '#1a3d2f',
     }}
   >
-    <svg
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      style={{ width: 52, height: 52 }}
-      aria-label="Veridian"
+    <span
+      aria-hidden="true"
+      style={{
+        width: 52,
+        height: 52,
+        borderRadius: 16,
+        background: '#1a3d2f',
+        color: '#86efac',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontWeight: 800,
+        fontSize: 28,
+        lineHeight: 1,
+      }}
     >
-      <rect width="32" height="32" rx="10" fill="#1a3d2f" />
-      <text
-        x="50%"
-        y="58%"
-        dominantBaseline="middle"
-        textAnchor="middle"
-        fill="#86efac"
-        style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 800, fontSize: 20 }}
-      >
-        V
-      </text>
-    </svg>
+      V
+    </span>
     <span>
       Veridian
       <span style={{ color: '#86efac', marginLeft: 4 }}>CMS</span>

@@ -17,7 +17,7 @@ import {
   StatsBlock,
   FAQBlock,
 } from '../blocks'
-import { triggerSiteRebuild } from '../hooks/triggerSiteRebuild'
+import { triggerSiteRebuild, triggerSiteRebuildAfterDelete } from '../hooks/triggerSiteRebuild'
 
 const PROTECTED_SLUGS = new Set([
   'home',
@@ -69,6 +69,7 @@ export const Pages: CollectionConfig = {
   hooks: {
     afterChange: [triggerSiteRebuild],
     beforeDelete: [blockProtectedSlugDelete],
+    afterDelete: [triggerSiteRebuildAfterDelete],
   },
   fields: [
     { name: 'title', type: 'text', required: true, label: 'Titre de la page' },
