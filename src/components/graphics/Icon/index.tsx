@@ -11,25 +11,25 @@ import React from 'react'
  * Source : https://veridian.site/icon.svg
  */
 export const Icon: React.FC = () => (
-  <svg
-    viewBox="0 0 32 32"
-    xmlns="http://www.w3.org/2000/svg"
-    fill="none"
-    style={{ width: 18, height: 18, display: 'block' }}
+  <span
     aria-label="Veridian"
+    style={{
+      width: 18,
+      height: 18,
+      borderRadius: 6,
+      background: '#1a3d2f',
+      color: '#86efac',
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      fontWeight: 800,
+      fontSize: 12,
+      lineHeight: 1,
+    }}
   >
-    <rect width="32" height="32" rx="10" fill="#1a3d2f" />
-    <text
-      x="50%"
-      y="58%"
-      dominantBaseline="middle"
-      textAnchor="middle"
-      fill="#86efac"
-      style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontWeight: 800, fontSize: 22 }}
-    >
-      V
-    </text>
-  </svg>
+    V
+  </span>
 )
 
 export default Icon
