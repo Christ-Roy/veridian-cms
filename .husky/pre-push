@@ -25,4 +25,8 @@ if [ -x scripts/ci/check-migration-safety.sh ]; then
   fi
 fi
 
+if ! scripts/ci/check-nomad-contract.sh; then
+  FAIL=1
+fi
+
 exit $FAIL

@@ -12,16 +12,34 @@
 
 variable "image_tag" {
   type        = string
-  description = "Tag de l'image ghcr.io/christ-roy/veridian-cms promue en prod (injecté par la CI)."
-  # Le defaut valait `latest` : un deploiement hors CI aurait
-  # embarque n'importe quelle image. On epingle ce qui tourne reellement.
-  default     = "v0.1.7"
+  description = "Tag immuable de l'image ghcr.io/christ-roy/veridian-cms promue en prod (injecté par la CI)."
+  # Mesuré sur le job Nomad live avant ce commit : v0.1.8.
+  default     = "v0.1.8"
 }
 
 job "cms" {
   datacenters = ["veridian-eu"]
   type        = "service"
   priority    = 80
+
+# veridian-contract:start
+  meta = {
+    "veridian.contract.version"  = "1"
+    "veridian.managed_by"        = "repo"
+    "veridian.environment"       = "production"
+    "veridian.tier"              = "saas-prod"
+    "veridian.criticality"       = "B"
+    "veridian.owner"             = "platform"
+    "veridian.objective"         = "availability-99.9"
+    "veridian.rto_minutes"       = "5"
+    "veridian.rpo_minutes"       = "15"
+    "veridian.state"             = "local-state"
+    "veridian.mobility"          = "local-gap"
+    "veridian.preemptible"       = "false"
+    "veridian.staging_job"       = "cms-staging"
+    "veridian.promotion_policy"  = "staging-required"
+  }
+# veridian-contract:end
 
   group "cms" {
     count = 1
