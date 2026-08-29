@@ -11,7 +11,11 @@
 variable "image_tag" {
   type        = string
   description = "Tag immuable de l'image ghcr.io/christ-roy/veridian-cms staging (injecté par la CI)."
-  default     = "staging-4c5939b"
+  # Recale le 2026-08-29 : mesure sur le job Nomad vivant = staging-a8fc60e,
+  # dont 4c5939b est un ancetre. Sans effet sur le deploiement (la CI injecte
+  # -var image_tag) ; l'effet est sur la verite des plans hors CI, ou le defaut
+  # affichait une retrogradation qui n'existait pas.
+  default     = "staging-a8fc60e"
 }
 
 job "cms-staging" {
