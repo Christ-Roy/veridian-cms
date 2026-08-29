@@ -16,7 +16,12 @@ variable "image_tag" {
   # Le defaut valait `latest` : un deploiement hors CI aurait
   # embarque n'importe quelle image. On epingle ce qui tourne reellement.
   # Mesuré sur le job Nomad live avant ce commit : v0.1.8.
-  default     = "v0.1.8"
+  # Recale le 2026-08-29 : mesure sur le job Nomad vivant = v0.1.10, deux
+  # promotions devant ce defaut. Aucun effet sur le deploiement, la CI injecte
+  # -var image_tag ; l'effet est sur la VERITE des plans hors CI, ou le defaut
+  # affichait une retrogradation qui n'existait pas et bloquait le chantier
+  # perms des secrets.
+  default     = "v0.1.10"
 }
 
 job "cms" {
