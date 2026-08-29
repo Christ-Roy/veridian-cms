@@ -21,7 +21,7 @@ variable "image_tag" {
   # -var image_tag ; l'effet est sur la VERITE des plans hors CI, ou le defaut
   # affichait une retrogradation qui n'existait pas et bloquait le chantier
   # perms des secrets.
-  default     = "v0.1.10"
+  default     = "v0.1.11"
 }
 
 job "cms" {
