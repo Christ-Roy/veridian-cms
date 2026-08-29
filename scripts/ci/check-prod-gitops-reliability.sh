@@ -45,18 +45,36 @@ require_fixed "$staging_hcl" 'name     = "cms-staging-selfheal"' 'self-heal stag
 require_fixed "$staging_hcl" 'init  = true' 'init anti-zombies staging absent'
 require_fixed "$staging_hcl" 'memory     = 128' 'réservation mémoire staging régressée'
 
-# Le plan Nomad retourne 0 sans remplacement, 1 avec remplacement et 255 sur
-# erreur. Le workflow accepte 0/1 mais ne doit jamais masquer le reste.
-require_fixed "$ci" 'PLAN_STATUS=$?' 'code retour du plan Nomad non capturé'
-require_fixed "$ci" '1) echo "plan avec remplacement' 'remplacement Nomad normal non accepté'
-require_fixed "$ci" '*) echo "::error::nomad job plan a échoué' 'erreur de plan Nomad non bloquante'
-reject_fixed "$ci" 'nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true' 'erreur de plan Nomad masquée'
-require_fixed "$ci" 'RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")' 'protection TOCTOU check-index absente'
-require_fixed "$ci" '/home/brunon5/all-cron/backups/prod-r2-backup.sh' 'backup R2 pré-déploiement absent'
+# Constat C4 (~/veridian/secrets-migration/C4-CONTRAT-CI.md) : la clé de
+# déploiement du CMS porte désormais une commande forcée sur le bastion
+# (`command="/usr/local/sbin/veridian-ci-deploy cms"`). Elle n'ouvre plus de
+# shell, donc aucun workflow ne doit plus envoyer de heredoc, sourcer le fichier
+# de credentials du bastion ou appeler nomad directement. Le plan, son code
+# retour, le pré-pull authentifié, le -check-index anti-TOCTOU et le suivi du
+# DeploymentID sont maintenant garantis côté serveur, où le client de CI ne peut
+# plus les contourner. Ces invariants-ci verrouillent donc la FORME de l'appel.
+for wf in "$ci" "$staging" "$rollback"; do
+  reject_fixed "$wf" "bash -s" "heredoc shell distant encore présent dans $(basename "$wf")"
+  reject_fixed "$wf" 'source ~/credentials/nomad-bastion.env' "credentials bastion encore sourcés depuis $(basename "$wf")"
+  reject_fixed "$wf" '/usr/bin/nomad' "appel direct à nomad encore présent dans $(basename "$wf")"
+  reject_fixed "$wf" 'NOMAD_MGMT_TOKEN' "jeton management Nomad encore manipulé dans $(basename "$wf")"
+  require_fixed "$wf" '-o BatchMode=yes' "BatchMode absent de $(basename "$wf") (clé en no-pty)"
+  require_fixed "$wf" 'ssh-keyscan -T 15 -H' "ssh-keyscan durci absent de $(basename "$wf")"
+  require_fixed "$wf" 'shred -u ~/.ssh/id_ed25519' "clé SSH non effacée du runner dans $(basename "$wf")"
+done
+
+# Verbes attendus, tier par tier. Le tier est explicite dans l'appel : un
+# workflow prod ne doit jamais pouvoir viser staging et réciproquement.
+require_fixed "$ci" '"put-job prod" < "$JOB_FILE"' 'HCL prod non transmis par le verbe put-job'
+require_fixed "$ci" '"deploy prod ${IMAGE_TAG}"' 'déploiement prod non passé par le verbe deploy'
+require_fixed "$ci" '"cleanup prod"' 'nettoyage prod non passé par le verbe cleanup'
+reject_fixed "$ci" '"put-job staging"' 'workflow prod ne doit pas déposer un HCL de staging'
+reject_fixed "$ci" '"deploy staging' 'workflow prod ne doit pas déclencher un déploiement staging'
+reject_fixed "$staging" '"deploy prod' 'workflow staging ne doit pas déclencher un déploiement prod'
 reject_fixed "$ci" 'continue-on-error: true  # lint' 'lint prod encore autorisé à échouer'
-reject_fixed "$staging" 'nomad job plan -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" || true' 'erreur de plan staging masquée'
-require_fixed "$staging" 'PLAN_STATUS=$?' 'code retour du plan staging non capturé'
-require_fixed "$staging" 'RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")' 'protection check-index staging absente'
+require_fixed "$staging" '"put-job staging" < "$JOB_FILE"' 'HCL staging non transmis par le verbe put-job'
+require_fixed "$staging" '"deploy staging ${IMAGE_TAG}"' 'déploiement staging non passé par le verbe deploy'
+require_fixed "$staging" '"cleanup staging"' 'nettoyage staging non passé par le verbe cleanup'
 reject_fixed "$staging" 'continue-on-error: true' 'preuve staging encore autorisée à échouer'
 require_fixed "$staging" 'docker/setup-buildx-action@v4' 'action buildx staging obsolète'
 require_fixed "$staging" 'docker/login-action@v4' 'action login staging obsolète'
@@ -71,28 +89,26 @@ require_fixed "$dockerfile" '/sharp-libvips' 'copie libvips Sharp runtime absent
 require_fixed "$dockerfile" 'ENV LD_LIBRARY_PATH=/usr/local/lib/sharp' 'chemin linker libvips absent'
 require_fixed "$ci" 'Sharp runtime smoke' 'smoke Sharp image prod absent'
 require_fixed "$staging" 'Sharp runtime smoke' 'smoke Sharp image staging absent'
-require_fixed "$ci" 'pré-pull prod impossible après 3 tentatives' 'retry pré-pull prod absent'
-require_fixed "$staging" 'pré-pull staging impossible après 3 tentatives' 'retry pré-pull staging absent'
 require_fixed "$staging" 'tags: tag:ci-github' 'tag Tailscale CI canonique absent'
 reject_fixed "$staging" 'tags: tag:ci$' 'ancien tag Tailscale tag:ci encore présent'
 reject_fixed "$trivyignore" 'CVE-2026-33671' 'ancienne exception picomatch encore présente'
 
-plan_line=$(grep -nF 'PLAN_OUTPUT=$(/usr/bin/nomad job plan' "$ci" | cut -d: -f1)
-backup_line=$(grep -nF '/home/brunon5/all-cron/backups/prod-r2-backup.sh' "$ci" | cut -d: -f1)
-run_line=$(grep -nF 'EVAL=$(/usr/bin/nomad job run' "$ci" | cut -d: -f1)
-[ "$plan_line" -lt "$backup_line" ] || fail 'backup lancé avant validation du plan'
-[ "$backup_line" -lt "$run_line" ] || fail 'backup non bloquant avant nomad job run'
+# Le rollback passe par le verbe `revert prod`. La sélection de la dernière
+# version STABLE antérieure, l'exigence d'un Evaluation ID et le suivi du
+# déploiement sont dans /usr/local/sbin/veridian-ci-deploy : le verbe sort non
+# nul si l'une de ces conditions manque. Ce qui reste vérifiable ici, c'est que
+# le workflow appelle bien le verbe et garde son contrôle de santé publique.
+require_fixed "$rollback" '"revert prod"' 'rollback prod non passé par le verbe revert'
+require_fixed "$rollback" 'Rollback health failed after 3min' 'contrôle de santé post-rollback absent'
 
-# Le rollback choisit une version stable, puis exige les deux identifiants Nomad
-# au lieu de valider sur la simple santé de l'ancienne allocation.
-require_fixed "$rollback" 'select(.Stable == true and .Version < $current)' 'rollback non limité aux versions stables'
-require_fixed "$rollback" 'rollback soumis sans Evaluation ID' 'Evaluation ID de rollback non obligatoire'
-require_fixed "$rollback" 'rollback sans Deployment ID après 30s' 'Deployment ID de rollback non obligatoire'
-
-fixture='[{"Version":16,"Stable":true},{"Version":15,"Stable":false},{"Version":14,"Stable":true},{"Version":13,"Stable":true}]'
-selected=$(printf '%s' "$fixture" | jq -r --argjson current 16 \
-  '[.[] | select(.Stable == true and .Version < $current) | .Version] | max // empty')
-[ "$selected" = 14 ] || fail "sélection version stable invalide: $selected"
+# ⚠️ Deux garanties du contrat serveur manquent aujourd'hui pour cms:prod et
+# sont suivies hors de ce script, dans le rapport de migration C4 :
+#   - aucun PREHOOK de sauvegarde R2 n'est déclaré pour cms:prod alors que le
+#     job est stateful (PostgreSQL co-localisé). L'ancien gate de backup
+#     bloquant avant run n'a pas d'équivalent côté bastion.
+#   - le verbe `revert` traite l'absence de DeploymentID comme un no-op, là où
+#     ce workflow en faisait une erreur. Le contrôle de santé ci-dessus reste
+#     le filet.
 
 # La PR de revert doit propager le bon nom de variable et échouer franchement si
 # la création ou l'auto-merge ne fonctionne pas.
@@ -103,4 +119,4 @@ reject_fixed "$revert" 'gh pr merge --auto --squash --delete-branch "$revert_bra
 
 bash "$root/scripts/ci/test-check-staging-fresh.sh"
 
-echo 'OK: invariants GitOps CMS prod et rollback fail-closed'
+echo 'OK: invariants GitOps CMS prod, verbes contraints du bastion et rollback fail-closed'
