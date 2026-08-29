@@ -285,13 +285,21 @@ jobs:
       url: https://cms.veridian.site/admin
     env:
       JOB_FILE: deploy/cms.nomad.hcl
-      REMOTE_HCL: /tmp/cms-${{ github.run_id }}.nomad.hcl
     steps:
       - uses: actions/checkout@v6
 
       # Deploy GitOps Nomad (remplace l'ancien webhook Dokploy décommissionné le
       # 2026-07-10). La CI SSH vers le bastion ; le NOMAD_TOKEN ne quitte jamais
       # le bastion (sourcé in situ). Canon : veridian-hub/deploy/README.md.
+      #
+      # Constat C4 (~/veridian/secrets-migration/C4-CONTRAT-CI.md) : la clé
+      # cms-ci-deploy@github ouvrait un shell sur un compte NOPASSWD:ALL du
+      # groupe docker, donc valait root sur le bastion et permettait de lire le
+      # jeton management Nomad. Elle porte désormais une commande forcée
+      # `command="/usr/local/sbin/veridian-ci-deploy cms"` : plus de shell, plus
+      # de heredoc, seulement un verbe, un tier et un tag validés par motif
+      # strict côté serveur. L'application est fixée dans la ligne de la clé :
+      # cette clé ne peut pas déployer le Hub ni Prospection.
       - name: Install SSH key (bastion Nomad)
         run: |
           mkdir -p ~/.ssh
@@ -307,100 +315,54 @@ jobs:
           echo "::error::impossible de récupérer la clé SSH du bastion"
           exit 1
 
-      - name: Copy HCL to bastion
+      # ── Déploiement par verbes contraints ─────────────────────────────
+      # Le `nomad job validate`, le `plan` avec interprétation du code retour,
+      # le pré-pull authentifié sur ovh-prod (ghcr privé, sinon 401 et alloc en
+      # pending), le `-check-index` anti-TOCTOU et le suivi du DeploymentID
+      # exact jusqu'à l'état terminal vivent maintenant dans le script serveur.
+      # Les retirer d'ici ne perd aucune garantie : elles sont passées côté
+      # bastion, où le client ne peut plus les contourner.
+      #
+      # ⚠️ Écart connu du contrat serveur : la table de veridian-ci-deploy ne
+      # déclare de pré-hook de sauvegarde R2 que pour hub:prod. Le job cms est
+      # pourtant stateful (PostgreSQL co-localisé, count=1) et bénéficiait ici
+      # d'un backup vérifié bloquant avant tout run. Tant que cms:prod n'a pas
+      # son PREHOOK, cette garantie n'existe plus. À faire remonter avant de
+      # considérer la migration C4 close.
+      #
+      # Toujours BatchMode=yes et jamais -t : la clé est en no-pty.
+      - name: Envoi du HCL au bastion (verbe put-job)
         run: |
-          scp -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
-            "$JOB_FILE" \
-            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}:$REMOTE_HCL"
+          # Le HCL part sur stdin ; le serveur refuse un HCL qui ne déclare pas
+          # job "cms", donc un fichier détourné ne passe pas.
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "put-job prod" < "$JOB_FILE"
 
-      - name: nomad job plan (dry-run) + run -detach + monitor
+      - name: Déploiement Nomad prod (verbe deploy)
         env:
           IMAGE_TAG: ${{ needs.docker.outputs.version }}
         run: |
-          ssh -i ~/.ssh/id_ed25519 \
+          # Job prod STATEFUL (DB co-localisée, count=1) : un run recrée l'alloc,
+          # bref restart attendu. Le verbe bloque jusqu'à l'état terminal du
+          # déploiement et sort non nul sur échec ou auto-revert.
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
             "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
-            "IMAGE_TAG='${IMAGE_TAG}' REMOTE_HCL='${REMOTE_HCL}' bash -s" <<'REMOTE'
-          set -euo pipefail
-          source ~/credentials/nomad-bastion.env
-          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
+            "deploy prod ${IMAGE_TAG}"
 
-          # ── Pré-pull sur ovh-prod (le job cms est provider=ovh-prod, PAS le
-          #    bastion). Le daemon docker d'ovh-prod partage son image store avec
-          #    Nomad (root) → l'image est présente quand la task démarre, sans
-          #    bloc auth dans le HCL (ghcr privé sinon 401). Auth ghcr déjà en
-          #    place sur ovh-prod (cf cutover 2026-07-15).
-          echo "== nomad job validate =="
-          /usr/bin/nomad job validate -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL"
-
-          echo "== nomad job plan (diff, inoffensif) =="
-          set +e
-          PLAN_OUTPUT=$(/usr/bin/nomad job plan -no-color \
-            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" 2>&1)
-          PLAN_STATUS=$?
-          set -e
-          printf '%s\n' "$PLAN_OUTPUT"
-          case "$PLAN_STATUS" in
-            0) echo "plan sans création ou destruction d'allocation" ;;
-            1) echo "plan avec remplacement d'allocation attendu" ;;
-            *) echo "::error::nomad job plan a échoué (code=$PLAN_STATUS)"; exit "$PLAN_STATUS" ;;
-          esac
-
-          # Lie le run au Modify Index observé par le plan. Si un autre acteur
-          # modifie le job entre les deux, le déploiement échoue au lieu
-          # d'écraser silencieusement son changement.
-          MODIFY_INDEX=$(printf '%s\n' "$PLAN_OUTPUT" \
-            | sed -n 's/^Job Modify Index: \([0-9][0-9]*\)$/\1/p' | tail -1)
-          RUN_INDEX_ARGS=()
-          [ -n "$MODIFY_INDEX" ] && RUN_INDEX_ARGS=(-check-index "$MODIFY_INDEX")
-
-          # Le groupe est stateful et redémarre aussi PostgreSQL. Une sauvegarde
-          # R2 fraîche et vérifiée est donc un gate bloquant avant tout run.
-          # On réutilise le runner canonique all-cron, sans créer un second cron.
-          echo "== sauvegarde PostgreSQL pré-déploiement vers R2 =="
-          /home/brunon5/all-cron/backups/prod-r2-backup.sh
-
-          echo "== pré-pull image sur ovh-prod =="
-          PULLED=""
-          for attempt in 1 2 3; do
-            if timeout 180s ssh -n -o BatchMode=yes -o ConnectTimeout=15 \
-              -o StrictHostKeyChecking=accept-new prod-pub \
-              "docker pull ghcr.io/christ-roy/veridian-cms:${IMAGE_TAG}"; then
-              PULLED=1
-              break
-            fi
-            echo "pré-pull prod tentative $attempt/3 en échec"
-            sleep $((attempt * 10))
-          done
-          [ -n "$PULLED" ] || { echo "::error::pré-pull prod impossible après 3 tentatives"; exit 1; }
-
-          # Job prod STATEFUL (DB co-localisée, count=1) → un run recrée l'alloc
-          # (bref restart, attendu). run -detach → monitoring ciblé du Deployment
-          # (bloque jusqu'à terminal, exit ≠0 si échec/auto-revert).
-          echo "== nomad job run -detach + monitoring (image_tag=${IMAGE_TAG}) =="
-          EVAL=$(/usr/bin/nomad job run -detach "${RUN_INDEX_ARGS[@]}" \
-            -var "image_tag=${IMAGE_TAG}" "$REMOTE_HCL" \
-            | grep -oP 'Evaluation ID:\s+\K\S+')
-          echo "eval: ${EVAL:-none}"
-          DEP=""
-          for i in $(seq 1 15); do
-            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
-            [ -n "$DEP" ] && break
-            sleep 2
-          done
-          if [ -z "$DEP" ]; then
-            echo "Pas de déploiement créé (job inchangé = no-op) → OK"
-          else
-            echo "deployment: $DEP — monitoring jusqu'à terminal…"
-            /usr/bin/nomad deployment status -monitor "$DEP"
-          fi
-          REMOTE
-
-      - name: Cleanup remote HCL
+      - name: Nettoyage du matériel déposé sur le bastion (verbe cleanup)
         if: always()
         run: |
-          ssh -i ~/.ssh/id_ed25519 \
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
             "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
-            "rm -f '$REMOTE_HCL'" || true
+            "cleanup prod" || true
+
+      - name: Effacement de la clé SSH sur le runner
+        if: always()
+        run: |
+          # Les smokes qui suivent sont des curl publics : la clé n'a plus à
+          # rester sur le runner pendant leur exécution.
+          shred -u ~/.ssh/id_ed25519 2>/dev/null || rm -f ~/.ssh/id_ed25519
 
       - name: Wait for healthy prod
         run: |

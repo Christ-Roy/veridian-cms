@@ -5,10 +5,12 @@ name: Emergency Rollback (prod)
 #   - Alertes monitoring via webhook GitHub `repository_dispatch`.
 #
 # Action (Nomad GitOps — l'ancien deploy Dokploy est décommissionné 2026-07-10) :
-#   1. `nomad job revert cms <version-1>` sur le bastion → restaure la version de
-#      job précédente (donc l'image d'avant). Note : le job cms a `auto_revert =
-#      true`, qui couvre déjà le cas "nouveau deploy jamais healthy". Ce workflow
-#      est le filet pour un breakage POST-deploy (alloc healthy mais app cassée).
+#   1. Verbe contraint `revert prod` sur le bastion → le script serveur revient
+#      à la dernière version de job STABLE antérieure (donc l'image d'avant) et
+#      suit le déploiement jusqu'à son état terminal. Note : le job cms a
+#      `auto_revert = true`, qui couvre déjà le cas "nouveau deploy jamais
+#      healthy". Ce workflow est le filet pour un breakage POST-deploy (alloc
+#      healthy mais app cassée).
 #   2. Trigger emergency-revert.yml pour le revert Git.
 #   3. Telegram alert.
 
@@ -42,51 +44,41 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.NOMAD_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
-
-      - name: nomad job revert (version précédente)
-        run: |
-          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new \
-            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" 'bash -s' <<'REMOTE'
-          set -euo pipefail
-          source ~/credentials/nomad-bastion.env
-          export NOMAD_ADDR NOMAD_TOKEN="$NOMAD_MGMT_TOKEN"
-          CUR=$(/usr/bin/nomad job inspect cms | python3 -c 'import sys,json;print(json.load(sys.stdin)["Job"]["Version"])')
-          if [ "$CUR" -lt 1 ]; then
-            echo "::error::pas de version antérieure à revert (version=$CUR)"
-            exit 1
-          fi
-
-          # Revenir à la dernière version stable antérieure, pas simplement à
-          # CUR-1 qui peut être une soumission échouée ou jamais stabilisée.
-          PREV=$(/usr/bin/nomad job history -json cms \
-            | jq -r --argjson current "$CUR" \
-              '[.[] | select(.Stable == true and .Version < $current) | .Version] | max // empty')
-          if [ -z "$PREV" ]; then
-            echo "::error::aucune version stable antérieure à $CUR"
-            exit 1
-          fi
-          echo "revert cms : version $CUR → version stable $PREV"
-          REVERT_OUTPUT=$(/usr/bin/nomad job revert -detach cms "$PREV" 2>&1)
-          printf '%s\n' "$REVERT_OUTPUT"
-          EVAL=$(printf '%s\n' "$REVERT_OUTPUT" | grep -oP 'Evaluation ID:\s+\K\S+' || true)
-          if [ -z "$EVAL" ]; then
-            echo "::error::rollback soumis sans Evaluation ID"
-            exit 1
-          fi
-          echo "eval: $EVAL"
-          DEP=""
-          for i in $(seq 1 15); do
-            DEP=$(/usr/bin/nomad eval status -json "$EVAL" 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("DeploymentID") or "")' 2>/dev/null || true)
-            [ -n "$DEP" ] && break
-            sleep 2
+          for attempt in 1 2 3; do
+            if ssh-keyscan -T 15 -H "${{ secrets.NOMAD_BASTION_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null; then
+              exit 0
+            fi
+            echo "ssh-keyscan tentative $attempt/3 en échec"
+            sleep 3
           done
-          if [ -z "$DEP" ]; then
-            echo "::error::rollback sans Deployment ID après 30s"
-            exit 1
-          fi
-          /usr/bin/nomad deployment status -monitor "$DEP"
-          REMOTE
+          echo "::error::impossible de récupérer la clé SSH du bastion"
+          exit 1
+
+      # ── Rollback par verbe contraint (constat C4) ─────────────────────
+      # La clé cms-ci-deploy@github porte une commande forcée
+      # `command="/usr/local/sbin/veridian-ci-deploy cms"` : elle n'ouvre plus
+      # de shell sur le bastion et ne peut plus lire le jeton management Nomad.
+      # Le heredoc shell d'origine ne passerait plus.
+      #
+      # La recherche de la dernière version STABLE antérieure (et non CUR-1, qui
+      # peut être une soumission jamais stabilisée), l'exigence d'un Evaluation
+      # ID puis d'un Deployment ID, et le suivi jusqu'à l'état terminal sont
+      # maintenant DANS le script serveur : le verbe sort non nul si l'une de
+      # ces conditions n'est pas remplie. Contrat de référence :
+      # ~/veridian/secrets-migration/C4-CONTRAT-CI.md
+      #
+      # Toujours BatchMode=yes et jamais -t : la clé est en no-pty.
+      - name: Rollback Nomad prod (verbe revert)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+            "${{ secrets.NOMAD_BASTION_USER }}@${{ secrets.NOMAD_BASTION_HOST }}" \
+            "revert prod"
+
+      - name: Effacement de la clé SSH sur le runner
+        if: always()
+        run: |
+          # La suite du workflow n'est que du curl public et des appels GitHub.
+          shred -u ~/.ssh/id_ed25519 2>/dev/null || rm -f ~/.ssh/id_ed25519
 
       - name: Wait for rollback healthy
         run: |
