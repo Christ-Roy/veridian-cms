@@ -36,7 +36,7 @@ require_fixed "$hcl" 'name     = "cms-selfheal"' 'service self-heal absent'
 require_fixed "$hcl" 'limit           = 4' 'check_restart applicatif absent'
 require_fixed "$hcl" 'init  = true' 'init Docker anti-zombies absent'
 require_fixed "$hcl" 'memory     = 384' 'réservation mémoire app inattendue'
-require_fixed "$hcl" 'memory_max = 7000' 'plafond mémoire app absent'
+require_fixed "$hcl" 'memory_max = 512' 'plafond mémoire app inattendu'
 
 # Le HCL de test doit conserver les propriétés prouvées du staging canonique.
 # Sans elles, tester une branche feature peut silencieusement dégrader le banc.
