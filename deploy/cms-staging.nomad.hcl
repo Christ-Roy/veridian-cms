@@ -135,7 +135,7 @@ job "cms-staging" {
     }
 
     # --- Postgres staging (Payload migre au boot) ---
-    task "postgres" {
+    task "cms-staging-postgres" {
       driver = "docker"
       config {
         # Durcissement Unix : empeche un processus non privilegie d'elever ses
@@ -168,7 +168,7 @@ EOH
     }
 
     # --- App Payload 3 (image GHCR staging, tag injecté par la CI) ---
-    task "cms" {
+    task "cms-staging" {
       driver         = "docker"
       shutdown_delay = "10s"
       kill_timeout   = "30s"
