@@ -5,7 +5,10 @@
 # (privée Tailscale) et les secrets/DB (staging). Sert cms.staging.veridian.site.
 #
 # Privé Tailscale : `host_network=tailscale` (port bind IP tailnet only) +
-# middleware `cmsstg-internal-only@nomad` (ipAllowList tailnet) → 403 hors tailnet.
+# middleware `s2z-internal-only@file` (ipAllowList 100.64/10), porté par les
+# routes @file de l'ingress → 403 hors tailnet. Ce job ne déclare PLUS de
+# router ni de middleware Traefik lui-même : voir le pavé sur le bloc `tags`,
+# c'est ce qui cassait l'endormissement Sablier.
 # Source de vérité GitOps (dans CE repo) ; la CI injecte var image_tag.
 
 variable "image_tag" {
@@ -80,25 +83,49 @@ job "cms-staging" {
       name     = "cms-staging"
       provider = "nomad"
       port     = "http"
-      tags = [
-        "traefik.enable=true",
-        # Middleware NOMMÉ PAR JOB, jamais partagé. Traefik invalide un middleware
-        # déclaré plusieurs fois avec des valeurs divergentes : ce job déclarait
-        # `internal-only` avec une allowlist réduite (sans l'IPv6 Tailscale), alors
-        # qu'asset-bank/linkedin le déclaraient en version complète. Chaque
-        # resoumission de cms-staging mettait donc en 404 les services internes
-        # qui partageaient ce nom (incident du 2026-08-04).
-        # Portée identique aux autres jobs internes, seul le nom est propre à celui-ci.
-        "traefik.http.middlewares.cmsstg-internal-only.ipallowlist.sourcerange=100.64.0.0/10,fd7a:115c:a1e0::/48,172.26.64.0/20,127.0.0.1/32,::1/128",
-        "traefik.http.routers.cms-staging.rule=Host(`cms.staging.veridian.site`)",
-        "traefik.http.routers.cms-staging.entrypoints=web",
-        "traefik.http.routers.cms-staging.middlewares=cmsstg-internal-only@nomad",
-        "traefik.http.routers.cms-stagingsec.rule=Host(`cms.staging.veridian.site`)",
-        "traefik.http.routers.cms-stagingsec.entrypoints=websecure",
-        "traefik.http.routers.cms-stagingsec.tls=true",
-        "traefik.http.routers.cms-stagingsec.tls.certresolver=letsencrypt",
-        "traefik.http.routers.cms-stagingsec.middlewares=cmsstg-internal-only@nomad",
-      ]
+      # 🔴 NE PAS REMETTRE DE ROUTERS `@nomad` ICI : ils MASQUENT la route
+      # Sablier et cassent l'endormissement. Mesure du 2026-09-07.
+      #
+      # Le mecanisme, parce qu'il est invisible et qu'il se repose. Ce bloc
+      # declarait `traefik.enable=true` et DEUX routers portant exactement la
+      # meme regle `Host(`cms.staging.veridian.site`)` que les routes @file
+      # `cms-staging-s2z[-sec]` de l'ingress (nomad-veridian, jobs/infra/
+      # ingress.nomad.hcl). Regles identiques = priorites identiques (33, la
+      # longueur de la regle), donc l'un des deux gagne, et c'etait le @nomad.
+      # Or seul le @file porte le middleware `sablier-cms-staging`, celui qui
+      # OUVRE ET RENOUVELLE la session Sablier.
+      #
+      # D'ou un comportement qui a l'air de marcher et qui ne marche pas :
+      #   · a count=0 le service Nomad est deregistre, le router @nomad
+      #     disparait, la route @file prend la main : le REVEIL fonctionne ;
+      #   · des que la tache tourne, le router @nomad reapparait, capte tout le
+      #     trafic, et Sablier ne voit plus passer personne.
+      # Consequence : l'environnement est endormi au bout de 5 minutes SOUS LES
+      # PIEDS de celui qui s'en sert. Sur un banc d'essai qu'on ouvre justement
+      # pour regarder l'ecran, c'est le pire endroit possible — meme famille de
+      # panne que la course Sablier documentee dans l'ingress.
+      # Trace du 2026-09-07 : reveil a 12:31:08 par `cms-staging-s2z-sec@file`,
+      # puis TOUTES les requetes suivantes par `cms-stagingsec@nomad`.
+      #
+      # Les 4 autres bancs d'essai (hub, crm, notifuse, prospection) portent
+      # `traefik.enable=false` et dorment correctement : c'est le temoin.
+      #
+      # ⚠️ CE QUE CE CHANGEMENT RETRECIT, a savoir avant de l'imiter ailleurs.
+      # Le middleware `cmsstg-internal-only` supprime ici autorisait une plage
+      # plus large que le `s2z-internal-only@file` qui le remplace (lequel ne
+      # porte que 100.64.0.0/10 et 127.0.0.1/32) : partent le bridge Docker
+      # 172.26.64.0/20 et l'IPv6 tailnet fd7a:115c:a1e0::/48. Verifie AVANT de
+      # basculer, sur 7 jours de journaux d'acces de l'ingress : 23 requetes en
+      # tout sur cms.staging, toutes depuis 100.108.136.89, zero depuis le
+      # bridge, zero en IPv6. Si un appelant conteneur-a-conteneur apparait un
+      # jour, c'est `s2z-internal-only` qu'il faudra elargir — et ce bloc-la
+      # redemarre Traefik, donc ca se decide, ca ne se subit pas.
+      #
+      # Le middleware nommé par job disparait avec les routers qui l'utilisaient.
+      # L'incident du 2026-08-04 qu'il evitait (collision de nom `internal-only`
+      # avec asset-bank/linkedin, qui mettait les services internes en 404)
+      # reste evite : ce job ne declare plus AUCUN middleware Traefik.
+      tags = ["traefik.enable=false"]
       check {
         type     = "http"
         path     = "/api/health"
