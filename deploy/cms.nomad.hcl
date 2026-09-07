@@ -80,6 +80,12 @@ job "cms" {
     task "postgres" {
       driver = "docker"
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
         # Image officielle postgres:16-alpine + pgBackRest epingle. La BASE est
         # identique au bit pres : changer d'image de base changerait la
         # collation (musl/glibc) et fausserait silencieusement les index.
@@ -167,6 +173,12 @@ EOH
     task "pgbackrest" {
       driver = "docker"
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
         image      = "ghcr.io/christ-roy/veridian-postgres-pgbackrest:16-alpine@sha256:0da89e301ddd14d3f576505ce57a9b92d2c0bf44b72bb31dbaeef18c63a207ee"
         entrypoint = ["/usr/local/bin/pgbackrest-scheduler"]
         command    = ""
@@ -266,6 +278,12 @@ EOH
       }
 
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
         image = "ghcr.io/christ-roy/veridian-cms:${var.image_tag}"
         init  = true
         ports = ["http"]
