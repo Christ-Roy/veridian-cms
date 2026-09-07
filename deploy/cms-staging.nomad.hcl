@@ -111,6 +111,26 @@ job "cms-staging" {
     task "postgres" {
       driver = "docker"
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
+        # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
+        # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
+        # appartenait un conteneur. Les quatre premieres valeurs sont
+        # interpolees par Nomad a l'execution, les deux dernieres sont des
+        # proprietes du fichier (dossier jobs/<tier>/ et table du script
+        # scripts/poser-labels-conteneurs.py).
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-staging"
+          "site.veridian.app"   = "cms"
+        }
         image = "postgres:16-alpine"
         volumes = [
           "/opt/veridian-staging/cms/pgdata:/var/lib/postgresql/data",
@@ -159,6 +179,26 @@ EOH
         }
       }
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
+        # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
+        # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
+        # appartenait un conteneur. Les quatre premieres valeurs sont
+        # interpolees par Nomad a l'execution, les deux dernieres sont des
+        # proprietes du fichier (dossier jobs/<tier>/ et table du script
+        # scripts/poser-labels-conteneurs.py).
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-staging"
+          "site.veridian.app"   = "cms"
+        }
         image = "ghcr.io/christ-roy/veridian-cms:${var.image_tag}"
         init  = true
         ports = ["http"]
