@@ -36,12 +36,12 @@
     "@payloadcms/ui": "3.88.0",
     "cross-env": "^10.1.0",
     "graphql": "^16.8.1",
-    "next": "16.3.2",
+    "next": "16.3.6",
     "nodemailer": "^9.0.1",
     "payload": "3.88.0",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "sharp": "0.35.1"
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@playwright/test": "1.58.2",
@@ -72,21 +72,22 @@
       "unrs-resolver"
     ],
     "overrides": {
-      "fast-uri": ">=3.1.5 <4",
+      "fast-uri": ">=3.1.6 <4",
       "drizzle-orm": ">=0.45.2",
       "picomatch": ">=4.0.4",
-      "nodemailer": ">=9.0.1",
+      "nodemailer": ">=9.1.0 <10",
       "esbuild": "0.28.1",
       "undici": ">=8.9.0",
       "ws": ">=8.21.0",
-      "js-yaml": "4.3.1",
+      "js-yaml": ">=4.3.2",
       "immutable": "4.3.9",
       "postcss": "8.5.26",
-      "sharp": "0.35.1",
+      "sharp": "0.35.4",
       "dompurify": "3.4.12",
       "uuid": "11.1.1",
       "@babel/core": "7.29.6",
       "vite": "7.3.5",
+      "browserslist": ">=4.28.7",
       "brace-expansion@<2.0.0": "1.1.18",
       "brace-expansion@>=2.0.0": "5.0.9"
     }
