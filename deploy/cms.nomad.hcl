@@ -314,6 +314,7 @@ EOH
     # --- App Payload 3 (image GHCR CI, tag injecté par la CI) ---
     task "cms" {
       driver         = "docker"
+      user           = "nextjs"
       shutdown_delay = "10s"
       kill_timeout   = "30s"
 
@@ -342,7 +343,9 @@ EOH
         # droits via un binaire setuid. C'est le maillon entre « shell dans le
         # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
         # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
-        security_opt = ["no-new-privileges:true"]
+        security_opt    = ["no-new-privileges:true"]
+        readonly_rootfs = true
+        cap_drop        = ["ALL"]
 
         # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
         # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
@@ -364,6 +367,24 @@ EOH
         volumes = [
           "/opt/veridian-lab/cms/media:/app/media",
         ]
+
+        # Next.js standalone : le cache d'optimisation d'images (.next/cache)
+        # ecrit sur disque a la demande. Rootfs en lecture seule => tmpfs
+        # dedie, comme /tmp pour le reste de l'ecriture temporaire du
+        # process node. Meme configuration deja verifiee en prod sur `hub`
+        # (meme base d'image nextjs standalone) le 2026-09-24.
+        mount {
+          type     = "tmpfs"
+          target   = "/tmp"
+          readonly = false
+          tmpfs_options { size = 67108864 }
+        }
+        mount {
+          type     = "tmpfs"
+          target   = "/app/.next/cache"
+          readonly = false
+          tmpfs_options { size = 134217728 }
+        }
       }
       env {
         NODE_ENV                = "production"
