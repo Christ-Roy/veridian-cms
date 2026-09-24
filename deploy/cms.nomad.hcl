@@ -21,7 +21,10 @@ variable "image_tag" {
   # -var image_tag ; l'effet est sur la VERITE des plans hors CI, ou le defaut
   # affichait une retrogradation qui n'existait pas et bloquait le chantier
   # perms des secrets.
-  default     = "v0.1.11"
+  # Recale le 2026-09-24 (chantier durcissement conteneurs) : mesure sur le
+  # job Nomad vivant = v0.1.12, juste avant ce commit — un defaut perime
+  # aurait fait reculer l'image en meme temps que le durcissement.
+  default     = "v0.1.12"
 }
 
 job "cms" {
