@@ -186,7 +186,10 @@ export default buildConfig({
             user: process.env.SMTP_USER,
             pass: process.env.SMTP_PASSWORD,
           },
-        },
+          // nodemailer 10 embarque ses types : SMTPConnectionOptions (que l'adaptateur Payload attend)
+          // n'a plus `auth`, qui vit dans SMTPTransport.Options. Le transport SMTP lit toujours `auth`
+          // a l'execution : seul le type d'entree de l'adaptateur est trop etroit, d'ou l'assertion.
+        } as NonNullable<Parameters<typeof nodemailerAdapter>[0]>['transportOptions'],
       })
     : undefined,
   plugins: [
