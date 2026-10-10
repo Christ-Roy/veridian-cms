@@ -163,6 +163,26 @@ job "cms" {
         ]
       }
       template {
+        destination = "secrets/pgbackrest-repo.key"
+        perms       = "600"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY }}{{ end }}
+EOH
+      }
+
+      template {
+        destination = "secrets/pgbackrest-repo.key.pub"
+        perms       = "644"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY_PUB }}{{ end }}
+EOH
+      }
+
+      template {
         data        = <<EOH
 {{ with nomadVar "nomad/jobs/cms" }}
 POSTGRES_USER={{ .POSTGRES_USER }}
@@ -173,11 +193,18 @@ POSTGRES_DB={{ .POSTGRES_DB }}
 # Aucun fichier de configuration : les identifiants R2 et la phrase de
 # chiffrement ne sont jamais ecrits sur le disque de l'allocation. pgBackRest
 # lit toute option sous la forme PGBACKREST_<OPTION>.
-PGBACKREST_REPO1_TYPE=s3
-PGBACKREST_REPO1_PATH=/pgbackrest/cms
-PGBACKREST_REPO1_S3_REGION=auto
+# Depot sur NOS machines (2026-10-10, plus de R2) : SFTP chroot, compte `pgbackrest`,
+# jamais sur le noeud qui porte la base ; cle dans la Variable Nomad du job.
+PGBACKREST_REPO1_TYPE=sftp
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST={{ .SFTP_REPO_HOST }}{{ end }}
+PGBACKREST_REPO1_SFTP_HOST_USER=pgbackrest
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE=/secrets/pgbackrest-repo.key
+PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE=/secrets/pgbackrest-repo.key.pub
+PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE=fingerprint
+PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE=sha1
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT={{ .SFTP_REPO_FP }}{{ end }}
+PGBACKREST_REPO1_PATH=/data/cms
 # path : R2 accepte les deux styles, celui-ci ne depend pas d'un DNS par bucket.
-PGBACKREST_REPO1_S3_URI_STYLE=path
 PGBACKREST_REPO1_CIPHER_TYPE=aes-256-cbc
 PGBACKREST_COMPRESS_TYPE=zst
 PGBACKREST_COMPRESS_LEVEL=6
@@ -188,10 +215,6 @@ PGBACKREST_LOG_LEVEL_FILE=off
 PGBACKREST_PG1_PATH=/var/lib/postgresql/data
 PGBACKREST_PG1_PORT=5432
 {{ with nomadVar "nomad/jobs/cms" }}
-PGBACKREST_REPO1_S3_BUCKET={{ .R2_BUCKET }}
-PGBACKREST_REPO1_S3_ENDPOINT={{ .R2_ENDPOINT }}
-PGBACKREST_REPO1_S3_KEY={{ .R2_ACCESS_KEY_ID }}
-PGBACKREST_REPO1_S3_KEY_SECRET={{ .R2_SECRET_ACCESS_KEY }}
 # Utilisateur et base lus dans la MEME Variable que PostgreSQL lui-meme :
 # les recopier en dur ici les ferait deriver en silence le jour ou ils changent.
 PGBACKREST_PG1_USER={{ .POSTGRES_USER }}
@@ -251,6 +274,26 @@ EOH
       user = "postgres"
 
       template {
+        destination = "secrets/pgbackrest-repo.key"
+        perms       = "600"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY }}{{ end }}
+EOH
+      }
+
+      template {
+        destination = "secrets/pgbackrest-repo.key.pub"
+        perms       = "644"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY_PUB }}{{ end }}
+EOH
+      }
+
+      template {
         destination = "secrets/pgbackrest.env"
         perms       = "600"   # secret: lisible du seul proprietaire
         env         = true
@@ -277,11 +320,18 @@ PGBACKREST_START_FAST=y
 # Aucun fichier de configuration : les identifiants R2 et la phrase de
 # chiffrement ne sont jamais ecrits sur le disque de l'allocation. pgBackRest
 # lit toute option sous la forme PGBACKREST_<OPTION>.
-PGBACKREST_REPO1_TYPE=s3
-PGBACKREST_REPO1_PATH=/pgbackrest/cms
-PGBACKREST_REPO1_S3_REGION=auto
+# Depot sur NOS machines (2026-10-10, plus de R2) : SFTP chroot, compte `pgbackrest`,
+# jamais sur le noeud qui porte la base ; cle dans la Variable Nomad du job.
+PGBACKREST_REPO1_TYPE=sftp
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST={{ .SFTP_REPO_HOST }}{{ end }}
+PGBACKREST_REPO1_SFTP_HOST_USER=pgbackrest
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE=/secrets/pgbackrest-repo.key
+PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE=/secrets/pgbackrest-repo.key.pub
+PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE=fingerprint
+PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE=sha1
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT={{ .SFTP_REPO_FP }}{{ end }}
+PGBACKREST_REPO1_PATH=/data/cms
 # path : R2 accepte les deux styles, celui-ci ne depend pas d'un DNS par bucket.
-PGBACKREST_REPO1_S3_URI_STYLE=path
 PGBACKREST_REPO1_CIPHER_TYPE=aes-256-cbc
 PGBACKREST_COMPRESS_TYPE=zst
 PGBACKREST_COMPRESS_LEVEL=6
@@ -292,10 +342,6 @@ PGBACKREST_LOG_LEVEL_FILE=off
 PGBACKREST_PG1_PATH=/var/lib/postgresql/data
 PGBACKREST_PG1_PORT=5432
 {{ with nomadVar "nomad/jobs/cms" }}
-PGBACKREST_REPO1_S3_BUCKET={{ .R2_BUCKET }}
-PGBACKREST_REPO1_S3_ENDPOINT={{ .R2_ENDPOINT }}
-PGBACKREST_REPO1_S3_KEY={{ .R2_ACCESS_KEY_ID }}
-PGBACKREST_REPO1_S3_KEY_SECRET={{ .R2_SECRET_ACCESS_KEY }}
 # Utilisateur et base lus dans la MEME Variable que PostgreSQL lui-meme :
 # les recopier en dur ici les ferait deriver en silence le jour ou ils changent.
 PGBACKREST_PG1_USER={{ .POSTGRES_USER }}
