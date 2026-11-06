@@ -8,6 +8,7 @@ import * as migration_20260512_145547_add_tenant_company_contact from './2026051
 import * as migration_20260512_150457_add_tenant_branding from './20260512_150457_add_tenant_branding';
 import * as migration_20260512_154828_add_stats_and_faq_blocks from './20260512_154828_add_stats_and_faq_blocks';
 import * as migration_20260512_160636_add_partners_and_features from './20260512_160636_add_partners_and_features';
+import * as migration_20261011_100000_payload_3_90_reset_password_requested_at from './20261011_100000_payload_3_90_reset_password_requested_at';
 
 export const migrations = [
   {
@@ -59,5 +60,10 @@ export const migrations = [
     up: migration_20260512_160636_add_partners_and_features.up,
     down: migration_20260512_160636_add_partners_and_features.down,
     name: '20260512_160636_add_partners_and_features',
+  },
+  {
+    up: migration_20261011_100000_payload_3_90_reset_password_requested_at.up,
+    down: migration_20261011_100000_payload_3_90_reset_password_requested_at.down,
+    name: '20261011_100000_payload_3_90_reset_password_requested_at',
   },
 ];

@@ -12,9 +12,19 @@
 
 variable "image_tag" {
   type        = string
-  description = "Tag immuable de l'image ghcr.io/christ-roy/veridian-cms promue en prod (injecté par la CI)."
+  description = "Tag de l'image ghcr.io/christ-roy/veridian-cms promue en prod (injecté par la CI)."
+  # Le defaut valait `latest` : un deploiement hors CI aurait
+  # embarque n'importe quelle image. On epingle ce qui tourne reellement.
   # Mesuré sur le job Nomad live avant ce commit : v0.1.8.
-  default     = "v0.1.8"
+  # Recale le 2026-08-29 : mesure sur le job Nomad vivant = v0.1.10, deux
+  # promotions devant ce defaut. Aucun effet sur le deploiement, la CI injecte
+  # -var image_tag ; l'effet est sur la VERITE des plans hors CI, ou le defaut
+  # affichait une retrogradation qui n'existait pas et bloquait le chantier
+  # perms des secrets.
+  # Recale le 2026-09-24 (chantier durcissement conteneurs) : mesure sur le
+  # job Nomad vivant = v0.1.12, juste avant ce commit — un defaut perime
+  # aurait fait reculer l'image en meme temps que le durcissement.
+  default     = "v0.1.12"
 }
 
 job "cms" {
@@ -61,7 +71,14 @@ job "cms" {
     # bridge => les 2 tasks partagent le netns : cms joint postgres via 127.0.0.1:5432
     network {
       mode = "bridge"
-      port "http" { to = 3000 }
+      # Le provider Nomad annonce cette adresse aux deux ingress HA. Utiliser
+      # le réseau public rend le backend joignable uniquement depuis l'ingress
+      # co-localisé sur ovh-prod ; l'autre origine finit en 504. Le tailnet est
+      # la route privée commune aux nœuds du cluster.
+      port "http" {
+        to           = 3000
+        host_network = "tailscale"
+      }
     }
 
     service {
@@ -96,10 +113,30 @@ job "cms" {
     task "postgres" {
       driver = "docker"
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
+        # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
+        # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
+        # appartenait un conteneur. Les quatre premieres valeurs sont
+        # interpolees par Nomad a l'execution, les deux dernieres sont des
+        # proprietes du fichier (dossier jobs/<tier>/ et table du script
+        # scripts/poser-labels-conteneurs.py).
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-prod"
+          "site.veridian.app"   = "cms"
+        }
         # Image officielle postgres:16-alpine + pgBackRest epingle. La BASE est
         # identique au bit pres : changer d'image de base changerait la
         # collation (musl/glibc) et fausserait silencieusement les index.
-        image = "ghcr.io/christ-roy/veridian-postgres-pgbackrest:16-alpine@sha256:0da89e301ddd14d3f576505ce57a9b92d2c0bf44b72bb31dbaeef18c63a207ee"
+        image = "ghcr.io/christ-roy/veridian-postgres-pgbackrest:16-alpine-gosu-20261002@sha256:369519d288c75d261c39df2a4e15a7d5b5b4a9e9bf2802048ab145f1f6bfa602"
         args = [
           # --- Archivage continu des WAL vers le depot pgBackRest ---
           # C'est CE reglage, et non la sauvegarde nocturne, qui borne la perte
@@ -126,6 +163,26 @@ job "cms" {
         ]
       }
       template {
+        destination = "secrets/pgbackrest-repo.key"
+        perms       = "600"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY }}{{ end }}
+EOH
+      }
+
+      template {
+        destination = "secrets/pgbackrest-repo.key.pub"
+        perms       = "644"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY_PUB }}{{ end }}
+EOH
+      }
+
+      template {
         data        = <<EOH
 {{ with nomadVar "nomad/jobs/cms" }}
 POSTGRES_USER={{ .POSTGRES_USER }}
@@ -136,11 +193,18 @@ POSTGRES_DB={{ .POSTGRES_DB }}
 # Aucun fichier de configuration : les identifiants R2 et la phrase de
 # chiffrement ne sont jamais ecrits sur le disque de l'allocation. pgBackRest
 # lit toute option sous la forme PGBACKREST_<OPTION>.
-PGBACKREST_REPO1_TYPE=s3
-PGBACKREST_REPO1_PATH=/pgbackrest/cms
-PGBACKREST_REPO1_S3_REGION=auto
+# Depot sur NOS machines (2026-10-10, plus de R2) : SFTP chroot, compte `pgbackrest`,
+# jamais sur le noeud qui porte la base ; cle dans la Variable Nomad du job.
+PGBACKREST_REPO1_TYPE=sftp
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST={{ .SFTP_REPO_HOST }}{{ end }}
+PGBACKREST_REPO1_SFTP_HOST_USER=pgbackrest
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE=/secrets/pgbackrest-repo.key
+PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE=/secrets/pgbackrest-repo.key.pub
+PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE=fingerprint
+PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE=sha1
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT={{ .SFTP_REPO_FP }}{{ end }}
+PGBACKREST_REPO1_PATH=/data/cms
 # path : R2 accepte les deux styles, celui-ci ne depend pas d'un DNS par bucket.
-PGBACKREST_REPO1_S3_URI_STYLE=path
 PGBACKREST_REPO1_CIPHER_TYPE=aes-256-cbc
 PGBACKREST_COMPRESS_TYPE=zst
 PGBACKREST_COMPRESS_LEVEL=6
@@ -151,10 +215,6 @@ PGBACKREST_LOG_LEVEL_FILE=off
 PGBACKREST_PG1_PATH=/var/lib/postgresql/data
 PGBACKREST_PG1_PORT=5432
 {{ with nomadVar "nomad/jobs/cms" }}
-PGBACKREST_REPO1_S3_BUCKET={{ .R2_BUCKET }}
-PGBACKREST_REPO1_S3_ENDPOINT={{ .R2_ENDPOINT }}
-PGBACKREST_REPO1_S3_KEY={{ .R2_ACCESS_KEY_ID }}
-PGBACKREST_REPO1_S3_KEY_SECRET={{ .R2_SECRET_ACCESS_KEY }}
 # Utilisateur et base lus dans la MEME Variable que PostgreSQL lui-meme :
 # les recopier en dur ici les ferait deriver en silence le jour ou ils changent.
 PGBACKREST_PG1_USER={{ .POSTGRES_USER }}
@@ -165,6 +225,7 @@ PGBACKREST_REPO1_CIPHER_PASS={{ .PGBACKREST_CIPHER_PASS }}
 {{ end }}
 EOH
         destination = "secrets/pg.env"
+        perms       = "600"   # secret: lisible du seul proprietaire
         env         = true
       }
       resources {
@@ -183,7 +244,27 @@ EOH
     task "pgbackrest" {
       driver = "docker"
       config {
-        image      = "ghcr.io/christ-roy/veridian-postgres-pgbackrest:16-alpine@sha256:0da89e301ddd14d3f576505ce57a9b92d2c0bf44b72bb31dbaeef18c63a207ee"
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt = ["no-new-privileges:true"]
+
+        # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
+        # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
+        # appartenait un conteneur. Les quatre premieres valeurs sont
+        # interpolees par Nomad a l'execution, les deux dernieres sont des
+        # proprietes du fichier (dossier jobs/<tier>/ et table du script
+        # scripts/poser-labels-conteneurs.py).
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-prod"
+          "site.veridian.app"   = "cms"
+        }
+        image      = "ghcr.io/christ-roy/veridian-postgres-pgbackrest:16-alpine-gosu-20261002@sha256:369519d288c75d261c39df2a4e15a7d5b5b4a9e9bf2802048ab145f1f6bfa602"
         entrypoint = ["/usr/local/bin/pgbackrest-scheduler"]
         command    = ""
         volumes = [
@@ -193,7 +274,28 @@ EOH
       user = "postgres"
 
       template {
+        destination = "secrets/pgbackrest-repo.key"
+        perms       = "600"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY }}{{ end }}
+EOH
+      }
+
+      template {
+        destination = "secrets/pgbackrest-repo.key.pub"
+        perms       = "644"
+        uid         = 70
+        gid         = 70
+        data        = <<EOH
+{{ with nomadVar "nomad/jobs/cms" }}{{ .SFTP_REPO_KEY_PUB }}{{ end }}
+EOH
+      }
+
+      template {
         destination = "secrets/pgbackrest.env"
+        perms       = "600"   # secret: lisible du seul proprietaire
         env         = true
         data        = <<EOH
 TZ=UTC
@@ -218,11 +320,18 @@ PGBACKREST_START_FAST=y
 # Aucun fichier de configuration : les identifiants R2 et la phrase de
 # chiffrement ne sont jamais ecrits sur le disque de l'allocation. pgBackRest
 # lit toute option sous la forme PGBACKREST_<OPTION>.
-PGBACKREST_REPO1_TYPE=s3
-PGBACKREST_REPO1_PATH=/pgbackrest/cms
-PGBACKREST_REPO1_S3_REGION=auto
+# Depot sur NOS machines (2026-10-10, plus de R2) : SFTP chroot, compte `pgbackrest`,
+# jamais sur le noeud qui porte la base ; cle dans la Variable Nomad du job.
+PGBACKREST_REPO1_TYPE=sftp
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST={{ .SFTP_REPO_HOST }}{{ end }}
+PGBACKREST_REPO1_SFTP_HOST_USER=pgbackrest
+PGBACKREST_REPO1_SFTP_PRIVATE_KEY_FILE=/secrets/pgbackrest-repo.key
+PGBACKREST_REPO1_SFTP_PUBLIC_KEY_FILE=/secrets/pgbackrest-repo.key.pub
+PGBACKREST_REPO1_SFTP_HOST_KEY_CHECK_TYPE=fingerprint
+PGBACKREST_REPO1_SFTP_HOST_KEY_HASH_TYPE=sha1
+{{ with nomadVar "nomad/jobs/cms" }}PGBACKREST_REPO1_SFTP_HOST_FINGERPRINT={{ .SFTP_REPO_FP }}{{ end }}
+PGBACKREST_REPO1_PATH=/data/cms
 # path : R2 accepte les deux styles, celui-ci ne depend pas d'un DNS par bucket.
-PGBACKREST_REPO1_S3_URI_STYLE=path
 PGBACKREST_REPO1_CIPHER_TYPE=aes-256-cbc
 PGBACKREST_COMPRESS_TYPE=zst
 PGBACKREST_COMPRESS_LEVEL=6
@@ -233,10 +342,6 @@ PGBACKREST_LOG_LEVEL_FILE=off
 PGBACKREST_PG1_PATH=/var/lib/postgresql/data
 PGBACKREST_PG1_PORT=5432
 {{ with nomadVar "nomad/jobs/cms" }}
-PGBACKREST_REPO1_S3_BUCKET={{ .R2_BUCKET }}
-PGBACKREST_REPO1_S3_ENDPOINT={{ .R2_ENDPOINT }}
-PGBACKREST_REPO1_S3_KEY={{ .R2_ACCESS_KEY_ID }}
-PGBACKREST_REPO1_S3_KEY_SECRET={{ .R2_SECRET_ACCESS_KEY }}
 # Utilisateur et base lus dans la MEME Variable que PostgreSQL lui-meme :
 # les recopier en dur ici les ferait deriver en silence le jour ou ils changent.
 PGBACKREST_PG1_USER={{ .POSTGRES_USER }}
@@ -258,6 +363,7 @@ EOH
     # --- App Payload 3 (image GHCR CI, tag injecté par la CI) ---
     task "cms" {
       driver         = "docker"
+      user           = "nextjs"
       shutdown_delay = "10s"
       kill_timeout   = "30s"
 
@@ -282,12 +388,52 @@ EOH
       }
 
       config {
+        # Durcissement Unix : empeche un processus non privilegie d'elever ses
+        # droits via un binaire setuid. C'est le maillon entre « shell dans le
+        # conteneur » et « root sur l'hote ». N'affecte PAS un processus qui
+        # ABANDONNE ses droits au demarrage, seulement celui qui en gagne.
+        security_opt    = ["no-new-privileges:true"]
+        readonly_rootfs = true
+        cap_drop        = ["ALL"]
+
+        # Identification lisible du conteneur (2026-09-07). Nomad ne pose que
+        # `com.hashicorp.nomad.alloc_id` : rien ne disait a quelle application
+        # appartenait un conteneur. Les quatre premieres valeurs sont
+        # interpolees par Nomad a l'execution, les deux dernieres sont des
+        # proprietes du fichier (dossier jobs/<tier>/ et table du script
+        # scripts/poser-labels-conteneurs.py).
+        labels = {
+          "site.veridian.job"   = "${NOMAD_JOB_NAME}"
+          "site.veridian.group" = "${NOMAD_GROUP_NAME}"
+          "site.veridian.task"  = "${NOMAD_TASK_NAME}"
+          "site.veridian.node"  = "${node.unique.name}"
+          "site.veridian.tier"  = "saas-prod"
+          "site.veridian.app"   = "cms"
+        }
         image = "ghcr.io/christ-roy/veridian-cms:${var.image_tag}"
         init  = true
         ports = ["http"]
         volumes = [
           "/opt/veridian-lab/cms/media:/app/media",
         ]
+
+        # Next.js standalone : le cache d'optimisation d'images (.next/cache)
+        # ecrit sur disque a la demande. Rootfs en lecture seule => tmpfs
+        # dedie, comme /tmp pour le reste de l'ecriture temporaire du
+        # process node. Meme configuration deja verifiee en prod sur `hub`
+        # (meme base d'image nextjs standalone) le 2026-09-24.
+        mount {
+          type     = "tmpfs"
+          target   = "/tmp"
+          readonly = false
+          tmpfs_options { size = 67108864 }
+        }
+        mount {
+          type     = "tmpfs"
+          target   = "/app/.next/cache"
+          readonly = false
+          tmpfs_options { size = 134217728 }
+        }
       }
       env {
         NODE_ENV                = "production"
@@ -318,6 +464,7 @@ GITHUB_WORKFLOW={{ .GITHUB_WORKFLOW }}
 {{ end }}
 EOH
         destination = "secrets/cms.env"
+        perms       = "600"   # secret: lisible du seul proprietaire
         env         = true
       }
       resources {

@@ -71,10 +71,13 @@ jobs:
           fi
           if [ "${{ inputs.package-manager }}" = "pnpm" ]; then
             # pnpm audit --prod equivalent à npm omit=dev. Affiche tout, gate sur high.
+            # --ignore-unfixable : une advisory sans AUCUN correctif publie (braces,
+            # 2026-10-11) ne se corrige pas ; elle reapparait d'elle-meme des qu'un
+            # correctif existe. Meme politique que Trivy (ignore-unfixed).
             if [ "${{ inputs.omit-dev }}" = "true" ]; then
-              OUT=$(pnpm audit --prod --audit-level high 2>&1)
+              OUT=$(pnpm audit --prod --audit-level high --ignore-unfixable 2>&1)
             else
-              OUT=$(pnpm audit --audit-level high 2>&1)
+              OUT=$(pnpm audit --audit-level high --ignore-unfixable 2>&1)
             fi
           else
             OUT=$(npm audit $OMIT_FLAG --audit-level=high 2>&1)

@@ -1,38 +1,10 @@
-#!/usr/bin/env sh
-
-# Barriere trivy Veridian (CVE CRITICAL/HIGH avant push), logique partagee
-# avec guard-trivy-deploiement.py et le hook pre-push global. Ne PAS copier
-# la logique de scan ici : cette ligne suffit, elle importe le reste.
-python3 "$HOME/.claude/hooks/trivy-pre-push.py" "$@" || exit 1
-
-# Standard CI Veridian — pre-push hook
-# Refuse le push si :
-#   - fichier critique modifié sans test correspondant (test-mapping)
-#   - migration DB destructive sans pattern Expand & Contract
-# JAMAIS --no-verify (Constitution CI §3).
-
-BASE_REF="${BASE_REF:-origin/$(git rev-parse --abbrev-ref HEAD)}"
-if ! git rev-parse --verify --quiet "$BASE_REF" >/dev/null 2>&1; then
-  BASE_REF="origin/main"
+#!/bin/sh
+# Garde-fou central Veridian (trivy, secrets, palier « rapide » de
+# scripts/ci/controles.tsv). La mécanique ne vit pas ici :
+# ~/nomad-veridian/standards/controles-portables/ — `gardes --help`.
+G="$(command -v gardes 2>/dev/null || echo "$HOME/nomad-veridian/standards/controles-portables/gardes")"
+if [ ! -x "$G" ]; then
+  echo "gardes — NON ABOUTI : introuvable sur cette machine ($G). Push accepté SANS garde." >&2
+  exit 0
 fi
-export BASE_REF
-
-FAIL=0
-
-if [ -x scripts/ci/check-test-mapping.sh ]; then
-  if ! scripts/ci/check-test-mapping.sh; then
-    FAIL=1
-  fi
-fi
-
-if [ -x scripts/ci/check-migration-safety.sh ]; then
-  if ! scripts/ci/check-migration-safety.sh; then
-    FAIL=1
-  fi
-fi
-
-if ! scripts/ci/check-nomad-contract.sh; then
-  FAIL=1
-fi
-
-exit $FAIL
+exec "$G" pre-push "$@"

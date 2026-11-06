@@ -1,0 +1,12 @@
+# =============================================================================
+# controles.tsv — ce que veridian-cms contrôle lui-même. Six colonnes, tabulation.
+# Standard : ~/nomad-veridian/standards/controles-portables/CLAUDE.md
+# Joué au push par `gardes pre-push` (palier rapide), à la main par
+# `gardes verifier <palier>`. Trivy et les secrets du diff sortant sont joués
+# par gardes lui-même, ils ne se déclarent pas ici.
+# Palier rapide = l'ancien .husky/pre-push (3 étapes, même ordre, mêmes
+# conditions), migré le 03/10/2026.
+# =============================================================================
+rapide	test-mapping	.	scripts/ci/check-test-mapping.sh	-	Fichier critique modifié sans test correspondant : refusé.
+rapide	migration-safety	.	scripts/ci/check-migration-safety.sh	-	Migration DB destructive sans pattern Expand & Contract : refusée.
+rapide	contrat-nomad	.	scripts/ci/check-nomad-contract.sh	-	Contrat GitOps Nomad co-localisé : criticité, RTO/RPO, staging obligatoire, images immuables.
