@@ -17,7 +17,7 @@ variable "image_tag" {
 job "cms-staging" {
   datacenters = ["veridian-eu"]
   type        = "service"
-  priority    = 50
+  priority    = 30
 
 # veridian-contract:start
 # veridian.contract.version=1
