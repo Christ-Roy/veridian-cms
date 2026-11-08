@@ -35,8 +35,12 @@ require_fixed "$hcl" 'attempts = 10' 'restart Nomad prod non borné ou absent'
 require_fixed "$hcl" 'name     = "cms-selfheal"' 'service self-heal absent'
 require_fixed "$hcl" 'limit           = 4' 'check_restart applicatif absent'
 require_fixed "$hcl" 'init  = true' 'init Docker anti-zombies absent'
-require_fixed "$hcl" 'memory     = 384' 'réservation mémoire app inattendue'
-require_fixed "$hcl" 'memory_max = 7000' 'plafond mémoire app absent'
+require_fixed "$hcl" 'memory     = 160' 'réservation mémoire app inattendue'
+require_fixed "$hcl" 'memory_max = 1280' 'plafond mémoire app absent'
+# Base hors du job depuis le 08/11 (job cms-db de nomad-veridian) : un deploiement du CMS ne touche plus sa base.
+grep -Eq '^    task "(postgres|pgbackrest)"' "$hcl" && fail 'la base est revenue dans le job cms : elle vit dans le job cms-db'
+require_fixed "$hcl" 'nomadService "cms-postgres"' 'le CMS ne trouve plus sa base par le catalogue'
+require_fixed "$hcl" 'canary           = 1' 'canari absent : un deploiement arrete le CMS avant que la nouvelle version serve'
 
 # Le HCL de test doit conserver les propriétés prouvées du staging canonique.
 # Sans elles, tester une branche feature peut silencieusement dégrader le banc.
