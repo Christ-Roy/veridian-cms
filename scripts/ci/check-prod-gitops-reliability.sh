@@ -39,7 +39,8 @@ require_fixed "$hcl" 'memory     = 160' 'réservation mémoire app inattendue'
 require_fixed "$hcl" 'memory_max = 1280' 'plafond mémoire app absent'
 # Base hors du job depuis le 08/11 (job cms-db de nomad-veridian) : un deploiement du CMS ne touche plus sa base.
 grep -Eq '^    task "(postgres|pgbackrest)"' "$hcl" && fail 'la base est revenue dans le job cms : elle vit dans le job cms-db'
-require_fixed "$hcl" 'nomadService "cms-postgres"' 'le CMS ne trouve plus sa base par le catalogue'
+require_fixed "$hcl" '172.26.64.1:15432/veridian_cms' 'le CMS ne joint plus sa base pg-saas (entree fixe)'
+reject_fixed "$hcl" 'nomadService "cms-postgres"' 'le CMS joint encore cms-db par le catalogue'
 require_fixed "$hcl" 'canary           = 1' 'canari absent : un deploiement arrete le CMS avant que la nouvelle version serve'
 
 # Le HCL de test doit conserver les propriétés prouvées du staging canonique.
