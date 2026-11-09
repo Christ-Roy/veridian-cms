@@ -24,7 +24,7 @@ variable "image_tag" {
   # Recale le 2026-09-24 (chantier durcissement conteneurs) : mesure sur le
   # job Nomad vivant = v0.1.12, juste avant ce commit — un defaut perime
   # aurait fait reculer l'image en meme temps que le durcissement.
-  default     = "v0.1.12"
+  default     = "v0.1.18"
 }
 
 job "cms" {
@@ -68,7 +68,7 @@ job "cms" {
       value     = "ovh-prod"
     }
 
-    # La base est jointe par le catalogue Nomad (service cms-postgres, job cms-db), plus par 127.0.0.1
+    # La base est jointe par l'entree pg-saas (172.26.64.1:15432, base veridian_cms), plus par cms-db (retire le 09/11)
     network {
       mode = "bridge"
       # Le provider Nomad annonce cette adresse aux deux ingress HA. Utiliser
@@ -211,7 +211,8 @@ GITHUB_TOKEN={{ .GITHUB_TOKEN }}
 GITHUB_REPO={{ .GITHUB_REPO }}
 GITHUB_WORKFLOW={{ .GITHUB_WORKFLOW }}
 {{ end }}
-{{ range nomadService "cms-postgres" }}{{ $a := .Address }}{{ $p := .Port }}{{ with nomadVar "nomad/jobs/cms" }}DATABASE_URL=postgresql://{{ .POSTGRES_USER }}:{{ .POSTGRES_PASSWORD }}@{{ $a }}:{{ $p }}/{{ .POSTGRES_DB }}{{ end }}{{ end }}
+# Base pg-saas (grappe Patroni, 09/11/2026) : entree fixe du bridge Nomad, mot de passe du role cms (variable PG_SAAS_PASSWORD).
+{{ with nomadVar "nomad/jobs/cms" }}DATABASE_URL=postgresql://cms:{{ .PG_SAAS_PASSWORD }}@172.26.64.1:15432/veridian_cms{{ end }}
 EOH
         destination = "secrets/cms.env"
         perms       = "600"   # secret: lisible du seul proprietaire
