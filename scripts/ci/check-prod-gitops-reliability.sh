@@ -35,7 +35,7 @@ require_fixed "$hcl" 'attempts = 10' 'restart Nomad prod non borné ou absent'
 require_fixed "$hcl" 'name     = "cms-selfheal"' 'service self-heal absent'
 require_fixed "$hcl" 'limit           = 4' 'check_restart applicatif absent'
 require_fixed "$hcl" 'init  = true' 'init Docker anti-zombies absent'
-require_fixed "$hcl" 'memory     = 160' 'réservation mémoire app inattendue'
+require_fixed "$hcl" 'memory     = 208' 'réservation mémoire app inattendue'
 require_fixed "$hcl" 'memory_max = 1280' 'plafond mémoire app absent'
 # Base hors du job depuis le 08/11 (job cms-db de nomad-veridian) : un deploiement du CMS ne touche plus sa base.
 grep -Eq '^    task "(postgres|pgbackrest)"' "$hcl" && fail 'la base est revenue dans le job cms : elle vit dans le job cms-db'
