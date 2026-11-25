@@ -224,7 +224,7 @@ EOH
         # le placement ; le plafond de 7 GB laisse absorber les pics ponctuels.
         # 08/11 : reserve = memoire non reprenable mesuree (89 Mio) + 80 %, plafond coherent avec le tas Node de 1 024 Mio
         # (NODE_OPTIONS) : en dessous, Node serait tue avant sa propre limite. Avant : 7000 Mio, une fuite avalait ovh-prod.
-        memory     = 160
+        memory     = 208
         memory_max = 1280
       }
     }
