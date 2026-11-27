@@ -50,11 +50,12 @@ job "cms" {
 # veridian-contract:end
 
   group "cms" {
-    # 27/11/2026 (VER-270 lot C) : deux exemplaires, MEME noeud (ovh-prod) et meme volume media
-    # /opt/veridian-lab/cms/media : la repartition par zone attend un stockage objet partage (lot D).
-    # Ce que ca donne : un deploiement ou un crash d'une instance ne coupe plus le CMS.
-    # Les deux partagent le meme PG (pg-saas, entree fixe) ; PAYLOAD_DB_PUSH ne fait rien tant que le schema ne bouge pas.
-    count = 2
+    # 27/11/2026 soir : retour a UN exemplaire (decision de la parente). Les deux copies etaient sur le MEME noeud
+    # (ovh-prod, volume media local /opt/veridian-lab/cms/media) : aucune tenue de zone, et leurs 208 Mo de plus
+    # bloquaient le canari du Hub (ovh-prod reservee a 100 %, 19:10-19:50 UTC). Le CMS est une app en extinction.
+    # Le deploiement reste sans coupure (canari + healthcheck Traefik + retry). Deux exemplaires seulement au lot D
+    # (stockage objet partage), la seconde copie alors sur app-01.
+    count = 1
 
     # Annonce du changement de tags du deploiement suivant (healthcheck actif Traefik + retry, fiche 34
     # de nomad-veridian, garde-tags-canari.py). A RETIRER quand les tags annonces sont en place.
