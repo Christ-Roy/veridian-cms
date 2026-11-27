@@ -5,7 +5,7 @@
 # fichier sur le bastion et lance `nomad job run -var image_tag=<version>`.
 # Canon de référence : veridian-hub/deploy/ + veridian-prospection/deploy/README.md.
 #
-# Job STATEFUL (Postgres co-localisé, volumes bind sur ovh-prod, count=1) →
+# Job STATEFUL (volumes bind sur ovh-prod, count=2 sur le même noeud depuis le 27/11) →
 # un deploy recrée l'alloc (bref restart DB attendu, pas zéro-downtime). Les
 # sites clients fetchent le CMS au BUILD, pas au runtime : un blip n'impacte
 # que l'admin, pas les sites live.
@@ -50,7 +50,17 @@ job "cms" {
 # veridian-contract:end
 
   group "cms" {
-    count = 1
+    # 27/11/2026 (VER-270 lot C) : deux exemplaires, MEME noeud (ovh-prod) et meme volume media
+    # /opt/veridian-lab/cms/media : la repartition par zone attend un stockage objet partage (lot D).
+    # Ce que ca donne : un deploiement ou un crash d'une instance ne coupe plus le CMS.
+    # Les deux partagent le meme PG (pg-saas, entree fixe) ; PAYLOAD_DB_PUSH ne fait rien tant que le schema ne bouge pas.
+    count = 2
+
+    # Annonce du changement de tags du deploiement suivant (healthcheck actif Traefik + retry, fiche 34
+    # de nomad-veridian, garde-tags-canari.py). A RETIRER quand les tags annonces sont en place.
+    meta {
+      veridian_tags_canari_annonce = "b1ea78230a94e333"
+    }
 
     # Les pannes transitoires sont absorbées par Nomad. Le mode delay évite
     # une boucle de crash agressive tout en laissant dix tentatives sur 15 min.
