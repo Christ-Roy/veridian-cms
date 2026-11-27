@@ -102,7 +102,7 @@ job "cms" {
         "traefik.http.routers.cms.middlewares=internal-only@nomad",
         "traefik.http.routers.cmssec.rule=Host(`cms-lab.veridian.site`)",
         "traefik.http.routers.cmssec.entrypoints=websecure",
-        "traefik.http.routers.cmssec.middlewares=internal-only@nomad",
+        "traefik.http.routers.cmssec.middlewares=internal-only@nomad,retry-idempotent@file",
         "traefik.http.routers.cmssec.tls=true",
         "traefik.http.routers.cmssec.tls.certresolver=letsencrypt",
         "traefik.http.routers.cmssec.tls.domains[0].main=veridian.site",
@@ -111,6 +111,10 @@ job "cms" {
         "traefik.http.routers.cmsprod.entrypoints=websecure",
         "traefik.http.routers.cmsprod.tls=true",
         "traefik.http.routers.cmsprod.tls.certresolver=letsencrypt",
+        "traefik.http.routers.cmsprod.middlewares=retry-idempotent@file",
+        "traefik.http.services.cms.loadbalancer.healthcheck.path=/api/health",
+        "traefik.http.services.cms.loadbalancer.healthcheck.interval=5s",
+        "traefik.http.services.cms.loadbalancer.healthcheck.timeout=3s",
       ]
       check {
         type     = "tcp"
